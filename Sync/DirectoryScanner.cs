@@ -93,9 +93,15 @@ public sealed class DirectoryScanner
     internal static string ToRelative(string root, string fullPath)
         => Path.GetRelativePath(root, fullPath).Replace('\\', '/');
 
+    // Mtimes are normalized to millisecond precision so they compare equal on
+    // both peers (the wire format carries Unix milliseconds, and the local
+    // filesystem may report finer-grained timestamps).
     internal static DateTimeOffset MtimeOfFile(string fullPath)
-        => new(File.GetLastWriteTimeUtc(fullPath), TimeSpan.Zero);
+        => TruncateToMs(new DateTimeOffset(File.GetLastWriteTimeUtc(fullPath), TimeSpan.Zero));
 
     internal static DateTimeOffset MtimeOfDirectory(string fullPath)
-        => new(Directory.GetLastWriteTimeUtc(fullPath), TimeSpan.Zero);
+        => TruncateToMs(new DateTimeOffset(Directory.GetLastWriteTimeUtc(fullPath), TimeSpan.Zero));
+
+    private static DateTimeOffset TruncateToMs(DateTimeOffset value)
+        => DateTimeOffset.FromUnixTimeMilliseconds(value.ToUnixTimeMilliseconds());
 }

@@ -38,6 +38,7 @@ builder.Services.AddSingleton<DirectoryScanner>();
 builder.Services.AddSingleton<ISyncStore, InMemorySyncStore>();
 builder.Services.AddHostedService<ChangeWatcher>();
 builder.Services.AddSingleton(new PeerClient(beam.PeerAddress));
+builder.Services.AddHostedService<SyncEngine>();
 
 // Listen on the configured port for plaintext HTTP/2 gRPC. Bind all
 // interfaces so a peer on another machine can reach us.

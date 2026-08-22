@@ -69,10 +69,14 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
 
         if (request.IsDirectory)
         {
+            if (File.Exists(full))
+                File.Delete(full);
             Directory.CreateDirectory(full);
         }
         else
         {
+            if (Directory.Exists(full))
+                Directory.Delete(full, recursive: true);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             File.WriteAllBytes(full, request.Content.ToByteArray());
             if (request.MtimeUnixMs != 0)
@@ -91,16 +95,13 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
     /// </summary>
     private string ResolveWithinRoot(string relativePath)
     {
-        var root = _options.SyncDirectory;
-        var full = Path.GetFullPath(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        var fullRoot = Path.GetFullPath(root);
-
-        if (!full.Equals(fullRoot, StringComparison.Ordinal)
-            && !full.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        try
         {
-            throw new RpcException(new Status(StatusCode.InvalidArgument, $"Path escapes sync root: {relativePath}"));
+            return PathUtil.ResolveWithinRoot(_options.SyncDirectory, relativePath);
         }
-
-        return full;
+        catch (InvalidOperationException ex)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+        }
     }
 }

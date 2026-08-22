@@ -25,6 +25,9 @@ public sealed class BeamOptions
     /// <summary>Interval, in seconds, for the periodic full rescan.</summary>
     public int RescanIntervalSeconds { get; set; } = 30;
 
+    /// <summary>Interval, in seconds, between sync/reconcile passes.</summary>
+    public int SyncIntervalSeconds { get; set; } = 5;
+
     /// <summary>Returns configuration errors; empty when the options are valid.</summary>
     public IReadOnlyList<string> Validate()
     {
@@ -42,6 +45,8 @@ public sealed class BeamOptions
             errors.Add($"Beam:Port must be between 1 and 65535 (got {Port}).");
         if (RescanIntervalSeconds <= 0)
             errors.Add($"Beam:RescanIntervalSeconds must be positive (got {RescanIntervalSeconds}).");
+        if (SyncIntervalSeconds <= 0)
+            errors.Add($"Beam:SyncIntervalSeconds must be positive (got {SyncIntervalSeconds}).");
 
         return errors;
     }
