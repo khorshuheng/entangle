@@ -1,5 +1,7 @@
 using Beam.Configuration;
 using Beam.Services;
+using Beam.Storage;
+using Beam.Sync;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +17,11 @@ if (errors.Count > 0)
     throw new InvalidOperationException("Invalid Beam configuration: " + string.Join("; ", errors));
 }
 
+// Resolve relative paths once, against the content root, so every consumer
+// (scanner, watcher, store) operates on the same absolute paths.
+beam.SyncDirectory = Path.GetFullPath(beam.SyncDirectory);
+beam.DatabasePath = Path.GetFullPath(beam.DatabasePath);
+
 // The sync directory must be usable before we start watching it.
 try
 {
@@ -28,6 +35,9 @@ catch (Exception ex)
 
 builder.Services.AddSingleton(beam);
 builder.Services.AddGrpc();
+builder.Services.AddSingleton<DirectoryScanner>();
+builder.Services.AddSingleton<ISyncStore, InMemorySyncStore>();
+builder.Services.AddHostedService<ChangeWatcher>();
 
 // Listen on the configured port for plaintext HTTP/2 gRPC. Bind all
 // interfaces so a peer on another machine can reach us.
