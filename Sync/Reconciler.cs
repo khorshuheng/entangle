@@ -21,7 +21,7 @@ public static class Reconciler
         var peerByPath = peer.ToDictionary(e => e.Path, comparer);
         var actions = new List<ReconcileAction>();
 
-        foreach (var path in localByPath.Keys.Union(peerByPath.Keys))
+        foreach (var path in localByPath.Keys.Union(peerByPath.Keys, comparer))
         {
             var hasLocal = localByPath.TryGetValue(path, out var localEntry);
             var hasPeer = peerByPath.TryGetValue(path, out var peerEntry);

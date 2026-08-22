@@ -1,6 +1,9 @@
-# beam
+# Beam
 
-A gRPC service built on .NET 10.
+A bidirectional file/directory sync service built as a pair of peer gRPC
+services on .NET 10. Each peer watches a configurable directory and keeps it
+in sync with the other, with last-write-wins conflict resolution, deletion
+propagation via tombstones, and eventual consistency across offline periods.
 
 ## Prerequisites
 
@@ -15,6 +18,26 @@ The ASP.NET Core components ship as separate packages on Arch:
 sudo pacman -S aspnet-targeting-pack aspnet-runtime
 ```
 
+## Configuration
+
+Configuration is read from appsettings.json, environment variables
+(`Beam__Key`), or CLI args (`--Beam:Key`):
+
+| Key                    | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `SyncDirectory`        | Local directory to keep in sync (required)               |
+| `DatabasePath`         | Path to the local SQLite state database (required)       |
+| `Port`                 | gRPC listen port (default `5000`)                        |
+| `PeerAddress`          | Address of the peer instance (required)                  |
+| `PeerId`               | Stable unique id, used for LWW tie-break (required)      |
+| `RescanIntervalSeconds`| Periodic full rescan interval (default `30`)             |
+| `SyncIntervalSeconds`  | Interval between reconcile passes (default `5`)          |
+| `MaxBackoffSeconds`    | Max retry backoff while the peer is unreachable (default `60`) |
+| `IgnoreCase`           | Case-insensitive path handling (default on Windows)      |
+
+Run two peers on the same host with different directories, ports, and peer ids
+pointing at each other.
+
 ## Build
 
 ```sh
@@ -27,8 +50,14 @@ dotnet build
 dotnet run
 ```
 
-The service listens on `http://localhost:5000` (HTTP/2) by default.
+The service listens on the configured port using plaintext HTTP/2 gRPC.
 
-## Service
+## Test
 
-The default template exposes a `Greeter` service defined in `Protos/greet.proto`.
+```sh
+dotnet test
+```
+
+Includes unit tests for reconcile/LWW logic and a linux-linux integration test
+running two in-process peers verifying add/modify/delete propagation, LWW
+conflict resolution, and offline re-sync.

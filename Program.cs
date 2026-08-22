@@ -1,7 +1,5 @@
+using Beam;
 using Beam.Configuration;
-using Beam.Storage;
-using Beam.Sync;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,24 +30,4 @@ catch (Exception ex)
         $"Beam:SyncDirectory '{beam.SyncDirectory}' is not usable: {ex.Message}", ex);
 }
 
-builder.Services.AddSingleton(beam);
-builder.Services.AddGrpc();
-builder.Services.AddSingleton<DirectoryScanner>();
-builder.Services.AddSingleton<ISyncStore>(_ => new SqliteSyncStore(beam.DatabasePath, beam.IgnoreCase));
-builder.Services.AddHostedService<ChangeWatcher>();
-builder.Services.AddSingleton(new PeerClient(beam.PeerAddress));
-builder.Services.AddHostedService<SyncEngine>();
-
-// Listen on the configured port for plaintext HTTP/2 gRPC. Bind all
-// interfaces so a peer on another machine can reach us.
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.ListenAnyIP(beam.Port, listen => listen.Protocols = HttpProtocols.Http2);
-});
-
-var app = builder.Build();
-
-app.MapGrpcService<SyncServiceImpl>();
-app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client.");
-
-app.Run();
+BeamApp.Build(beam).Run();
