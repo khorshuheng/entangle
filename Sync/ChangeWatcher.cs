@@ -101,7 +101,9 @@ public sealed class ChangeWatcher : BackgroundService
                 {
                     // Vanished since the last scan (e.g. a missed watcher event):
                     // record a deletion tombstone so the delete still propagates.
-                    _store.Upsert(new SyncEntry(existing.Path, existing.Type, DirectoryScanner.UtcNowMs(), Tombstone: true));
+                    var tombstone = new SyncEntry(existing.Path, existing.Type, DirectoryScanner.UtcNowMs(), Tombstone: true);
+                    _store.Upsert(tombstone);
+                    _store.EnqueueChange(tombstone);
                     changed++;
                 }
             }
@@ -112,6 +114,7 @@ public sealed class ChangeWatcher : BackgroundService
                 if (old is null || old != entry)
                 {
                     _store.Upsert(entry);
+                    _store.EnqueueChange(entry);
                     changed++;
                 }
             }
@@ -133,7 +136,14 @@ public sealed class ChangeWatcher : BackgroundService
         {
             var entry = _scanner.ScanSingle(fullPath, _options.SyncDirectory, _ignored);
             if (entry is not null)
-                _store.Upsert(entry);
+            {
+                var old = _store.GetEntry(entry.Path);
+                if (old != entry)
+                {
+                    _store.Upsert(entry);
+                    _store.EnqueueChange(entry);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -155,7 +165,9 @@ public sealed class ChangeWatcher : BackgroundService
             return;
 
         var type = existing?.Type ?? EntryType.File;
-        _store.Upsert(new SyncEntry(relative, type, DirectoryScanner.UtcNowMs(), Tombstone: true));
+        var tombstone = new SyncEntry(relative, type, DirectoryScanner.UtcNowMs(), Tombstone: true);
+        _store.Upsert(tombstone);
+        _store.EnqueueChange(tombstone);
     }
 
     private bool IsIgnored(string fullPath) => _ignored.Contains(Path.GetFullPath(fullPath));

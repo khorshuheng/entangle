@@ -36,12 +36,17 @@ public sealed class SyncEngine : BackgroundService
             _options.PeerAddress,
             _options.SyncIntervalSeconds);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_options.SyncIntervalSeconds));
+        var syncInterval = TimeSpan.FromSeconds(_options.SyncIntervalSeconds);
+        var maxBackoff = TimeSpan.FromSeconds(_options.MaxBackoffSeconds);
+        var backoff = TimeSpan.FromSeconds(1);
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            var success = false;
             try
             {
                 await ReconcileOnceAsync(stoppingToken);
+                success = true;
             }
             catch (OperationCanceledException)
             {
@@ -49,17 +54,27 @@ public sealed class SyncEngine : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Reconcile failed; will retry");
+                _logger.LogWarning(
+                    ex,
+                    "Reconcile failed; {Pending} pending changes, retrying in {Delay}s",
+                    _store.GetPendingChanges().Count,
+                    backoff.TotalSeconds);
             }
 
+            var delay = success ? syncInterval : backoff;
             try
             {
-                await timer.WaitForNextTickAsync(stoppingToken);
+                await Task.Delay(delay, stoppingToken);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
+
+            // Grow backoff after a failure, reset it after a success.
+            backoff = success
+                ? TimeSpan.FromSeconds(1)
+                : TimeSpan.FromSeconds(Math.Min(backoff.TotalSeconds * 2, maxBackoff.TotalSeconds));
         }
     }
 
@@ -70,13 +85,16 @@ public sealed class SyncEngine : BackgroundService
         var (peerId, peer) = await _peer.ExchangeStateAsync(_options.PeerId, local, ct);
         var actions = Reconciler.Plan(local, peer, _options.PeerId, peerId);
 
-        if (actions.Count == 0)
-            return;
+        if (actions.Count > 0)
+        {
+            _logger.LogInformation("Reconciling {Count} paths", actions.Count);
+            _logger.LogDebug("Local state: {Local}", Dump(local));
+            _logger.LogDebug("Peer state: {Peer}", Dump(peer));
+            await ApplyAsync(actions, ct);
+        }
 
-        _logger.LogInformation("Reconciling {Count} paths", actions.Count);
-        _logger.LogDebug("Local state: {Local}", Dump(local));
-        _logger.LogDebug("Peer state: {Peer}", Dump(peer));
-        await ApplyAsync(actions, ct);
+        // Full state exchange succeeded; local changes are now on the peer.
+        _store.ClearPendingChanges();
     }
 
     private static string Dump(IEnumerable<SyncEntry> entries)

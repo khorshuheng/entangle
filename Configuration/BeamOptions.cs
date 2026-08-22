@@ -28,6 +28,9 @@ public sealed class BeamOptions
     /// <summary>Interval, in seconds, between sync/reconcile passes.</summary>
     public int SyncIntervalSeconds { get; set; } = 5;
 
+    /// <summary>Maximum retry backoff, in seconds, while the peer is unreachable.</summary>
+    public int MaxBackoffSeconds { get; set; } = 60;
+
     /// <summary>Returns configuration errors; empty when the options are valid.</summary>
     public IReadOnlyList<string> Validate()
     {
@@ -47,6 +50,8 @@ public sealed class BeamOptions
             errors.Add($"Beam:RescanIntervalSeconds must be positive (got {RescanIntervalSeconds}).");
         if (SyncIntervalSeconds <= 0)
             errors.Add($"Beam:SyncIntervalSeconds must be positive (got {SyncIntervalSeconds}).");
+        if (MaxBackoffSeconds <= 0)
+            errors.Add($"Beam:MaxBackoffSeconds must be positive (got {MaxBackoffSeconds}).");
 
         return errors;
     }

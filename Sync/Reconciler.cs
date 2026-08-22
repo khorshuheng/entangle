@@ -34,7 +34,7 @@ public static class Reconciler
 
                 // Live directories carry no content; presence is all that
                 // matters, so don't let differing directory mtimes churn.
-                if (!localEntry.Tombstone && !peerEntry.Tombstone
+                if (!localEntry!.Tombstone && !peerEntry!.Tombstone
                     && localEntry.Type == EntryType.Directory
                     && peerEntry.Type == EntryType.Directory)
                     continue;
