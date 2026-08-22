@@ -32,12 +32,20 @@ public sealed class ChangeWatcher : BackgroundService
         _ignored = BuildIgnoredPaths(options);
     }
 
+    /// <summary>
+    /// Build initial state synchronously during startup so the sync engine
+    /// never reconciles against an empty or partial local view.
+    /// </summary>
+    public override Task StartAsync(CancellationToken cancellationToken)
+    {
+        Rescan();
+        _logger.LogInformation("Initial scan complete: {Count} entries", _store.GetEntries().Count);
+        return base.StartAsync(cancellationToken);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Change watcher starting for {Directory}", _options.SyncDirectory);
-
-        Rescan();
-        _logger.LogInformation("Initial scan complete: {Count} entries", _store.GetEntries().Count);
 
         using var watcher = new FileSystemWatcher(_options.SyncDirectory)
         {

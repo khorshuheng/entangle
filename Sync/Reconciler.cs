@@ -12,7 +12,8 @@ public static class Reconciler
     public static IReadOnlyList<ReconcileAction> Plan(
         IReadOnlyCollection<SyncEntry> local,
         IReadOnlyCollection<SyncEntry> peer,
-        string myPeerId)
+        string myPeerId,
+        string peerId)
     {
         var localByPath = local.ToDictionary(e => e.Path, StringComparer.Ordinal);
         var peerByPath = peer.ToDictionary(e => e.Path, StringComparer.Ordinal);
@@ -28,12 +29,8 @@ public static class Reconciler
                 if (localEntry == peerEntry)
                     continue; // already identical
 
-                // Newer mtime wins. Ties are resolved in favor of the local
-                // side for now; deterministic peer-id tie-break lands with LWW.
-                var localWins = localEntry!.Mtime >= peerEntry!.Mtime;
-                actions.Add(localWins
-                    ? new ReconcileAction(localEntry, ReconcileActionKind.Push)
-                    : new ReconcileAction(peerEntry, ReconcileActionKind.Pull));
+                var (winner, kind) = LwwResolver.Resolve(localEntry!, peerEntry!, myPeerId, peerId);
+                actions.Add(new ReconcileAction(winner, kind));
             }
             else if (hasLocal)
             {

@@ -67,15 +67,21 @@ public sealed class SyncEngine : BackgroundService
     public async Task ReconcileOnceAsync(CancellationToken ct = default)
     {
         var local = _store.GetEntries().ToList();
-        var peer = await _peer.ExchangeStateAsync(_options.PeerId, local, ct);
-        var actions = Reconciler.Plan(local, peer, _options.PeerId);
+        var (peerId, peer) = await _peer.ExchangeStateAsync(_options.PeerId, local, ct);
+        var actions = Reconciler.Plan(local, peer, _options.PeerId, peerId);
 
         if (actions.Count == 0)
             return;
 
         _logger.LogInformation("Reconciling {Count} paths", actions.Count);
+        _logger.LogDebug("Local state: {Local}", Dump(local));
+        _logger.LogDebug("Peer state: {Peer}", Dump(peer));
         await ApplyAsync(actions, ct);
     }
+
+    private static string Dump(IEnumerable<SyncEntry> entries)
+        => string.Join("; ", entries.Select(e =>
+            $"{e.Path}|{e.Type}|{e.Mtime:O}|{(e.ContentHash.Length >= 8 ? e.ContentHash[..8] : e.ContentHash)}"));
 
     private async Task ApplyAsync(IReadOnlyList<ReconcileAction> actions, CancellationToken ct)
     {

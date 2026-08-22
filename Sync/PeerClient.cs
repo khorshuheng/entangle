@@ -31,8 +31,8 @@ public sealed class PeerClient : IAsyncDisposable
         _client = new SyncRpc.SyncClient(_channel);
     }
 
-    /// <summary>Send our state and receive the peer's current state.</summary>
-    public async Task<IReadOnlyList<SyncEntry>> ExchangeStateAsync(
+    /// <summary>Send our state and receive the peer's id and current state.</summary>
+    public async Task<(string PeerId, IReadOnlyList<SyncEntry> Entries)> ExchangeStateAsync(
         string myPeerId,
         IReadOnlyCollection<SyncEntry> entries,
         CancellationToken ct = default)
@@ -42,7 +42,7 @@ public sealed class PeerClient : IAsyncDisposable
             request.Entries.Add(ProtoMapper.ToProto(entry));
 
         var reply = await _client.ExchangeStateAsync(request, cancellationToken: ct);
-        return reply.Entries.Select(ProtoMapper.FromProto).ToList();
+        return (reply.PeerId, reply.Entries.Select(ProtoMapper.FromProto).ToList());
     }
 
     /// <summary>Fetch a file's content and mtime from the peer.</summary>
