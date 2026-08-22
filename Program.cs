@@ -35,7 +35,7 @@ catch (Exception ex)
 builder.Services.AddSingleton(beam);
 builder.Services.AddGrpc();
 builder.Services.AddSingleton<DirectoryScanner>();
-builder.Services.AddSingleton<ISyncStore, InMemorySyncStore>();
+builder.Services.AddSingleton<ISyncStore>(_ => new SqliteSyncStore(beam.DatabasePath));
 builder.Services.AddHostedService<ChangeWatcher>();
 builder.Services.AddSingleton(new PeerClient(beam.PeerAddress));
 builder.Services.AddHostedService<SyncEngine>();
