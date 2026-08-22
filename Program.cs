@@ -1,5 +1,4 @@
 using Beam.Configuration;
-using Beam.Services;
 using Beam.Storage;
 using Beam.Sync;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -38,6 +37,7 @@ builder.Services.AddGrpc();
 builder.Services.AddSingleton<DirectoryScanner>();
 builder.Services.AddSingleton<ISyncStore, InMemorySyncStore>();
 builder.Services.AddHostedService<ChangeWatcher>();
+builder.Services.AddSingleton(new PeerClient(beam.PeerAddress));
 
 // Listen on the configured port for plaintext HTTP/2 gRPC. Bind all
 // interfaces so a peer on another machine can reach us.
@@ -48,7 +48,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-app.MapGrpcService<GreeterService>();
+app.MapGrpcService<SyncServiceImpl>();
 app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client.");
 
 app.Run();

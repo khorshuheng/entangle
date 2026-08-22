@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+option csharp_namespace = "Beam.Proto";
+
+package beam;
+
+// Bidirectional file/directory sync between two peers.
+service Sync {
+  // Exchange local state with the peer; returns the peer's current state so
+  // the caller can reconcile against it.
+  rpc ExchangeState (StateRequest) returns (StateReply);
+
+  // Pull the content of a single file from the peer.
+  rpc GetFile (FileRequest) returns (FileContent);
+
+  // Push the content of a single file (or an empty directory) to the peer.
+  rpc PutFile (FileContent) returns (PutFileReply);
+}
+
+message StateRequest {
+  string peer_id = 1;
+  repeated SyncEntryProto entries = 2;
+}
+
+message StateReply {
+  string peer_id = 1;
+  repeated SyncEntryProto entries = 2;
+}
+
+message SyncEntryProto {
+  string path = 1;
+  SyncEntryType type = 2;
+  int64 mtime_unix_ms = 3;
+  bool tombstone = 4;
+  string content_hash = 5;
+}
+
+enum SyncEntryType {
+  FILE = 0;
+  DIRECTORY = 1;
+}
+
+message FileRequest {
+  string path = 1;
+}
+
+message FileContent {
+  string path = 1;
+  bytes content = 2;
+  int64 mtime_unix_ms = 3;
+  bool tombstone = 4;
+  bool is_directory = 5;
+}
+
+message PutFileReply {
+  bool accepted = 1;
+}
