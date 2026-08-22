@@ -73,6 +73,19 @@ public sealed class PeerClient : IAsyncDisposable
         await _client.PutFileAsync(request, cancellationToken: ct);
     }
 
+    /// <summary>Ask the peer to delete a path (a deletion tombstone).</summary>
+    public async Task DeleteAsync(string path, DateTimeOffset mtime, CancellationToken ct = default)
+    {
+        var request = new FileContent
+        {
+            Path = path,
+            MtimeUnixMs = mtime.ToUnixTimeMilliseconds(),
+            Tombstone = true,
+        };
+
+        await _client.PutFileAsync(request, cancellationToken: ct);
+    }
+
     public ValueTask DisposeAsync()
     {
         _channel.Dispose();

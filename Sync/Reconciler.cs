@@ -26,8 +26,18 @@ public static class Reconciler
 
             if (hasLocal && hasPeer)
             {
+                if (localEntry!.Tombstone && peerEntry!.Tombstone)
+                    continue; // both sides already deleted
+
                 if (localEntry == peerEntry)
                     continue; // already identical
+
+                // Live directories carry no content; presence is all that
+                // matters, so don't let differing directory mtimes churn.
+                if (!localEntry.Tombstone && !peerEntry.Tombstone
+                    && localEntry.Type == EntryType.Directory
+                    && peerEntry.Type == EntryType.Directory)
+                    continue;
 
                 var (winner, kind) = LwwResolver.Resolve(localEntry!, peerEntry!, myPeerId, peerId);
                 actions.Add(new ReconcileAction(winner, kind));

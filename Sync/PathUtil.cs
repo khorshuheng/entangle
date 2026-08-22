@@ -20,4 +20,34 @@ public static class PathUtil
 
         return full;
     }
+
+    /// <summary>
+    /// Delete a file (or directory, recursively), then prune any now-empty
+    /// parent directories up to, but not including, the sync root.
+    /// </summary>
+    public static void DeletePathAndPruneEmptyParents(string root, string fullPath)
+    {
+        if (Directory.Exists(fullPath))
+            Directory.Delete(fullPath, recursive: true);
+        else if (File.Exists(fullPath))
+            File.Delete(fullPath);
+
+        PruneEmptyParents(root, fullPath);
+    }
+
+    /// <summary>Remove now-empty parent directories of <paramref name="fullPath"/> up to the root.</summary>
+    public static void PruneEmptyParents(string root, string fullPath)
+    {
+        var rootFull = Path.GetFullPath(root);
+        var dir = Path.GetDirectoryName(fullPath);
+
+        while (dir is not null
+               && !Path.GetFullPath(dir).Equals(rootFull, StringComparison.Ordinal)
+               && Directory.Exists(dir)
+               && !Directory.EnumerateFileSystemEntries(dir).Any())
+        {
+            Directory.Delete(dir);
+            dir = Path.GetDirectoryName(dir);
+        }
+    }
 }

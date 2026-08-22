@@ -67,6 +67,18 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
     {
         var full = ResolveWithinRoot(request.Path);
 
+        if (request.Tombstone)
+        {
+            var existing = _store.GetEntry(request.Path);
+            var type = existing?.Type ?? EntryType.File;
+            var mtime = DateTimeOffset.FromUnixTimeMilliseconds(request.MtimeUnixMs);
+
+            PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full);
+            _store.Upsert(new SyncEntry(request.Path, type, mtime, Tombstone: true));
+
+            return Task.FromResult(new PutFileReply { Accepted = true });
+        }
+
         if (request.IsDirectory)
         {
             if (File.Exists(full))

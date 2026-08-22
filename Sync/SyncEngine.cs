@@ -102,6 +102,15 @@ public sealed class SyncEngine : BackgroundService
     private async Task PullAsync(SyncEntry entry, CancellationToken ct)
     {
         var full = PathUtil.ResolveWithinRoot(_options.SyncDirectory, entry.Path);
+
+        if (entry.Tombstone)
+        {
+            PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full);
+            _store.Upsert(entry);
+            _logger.LogDebug("Deleted {Path} (peer tombstone)", entry.Path);
+            return;
+        }
+
         var (content, mtime, isDirectory) = await _peer.GetFileAsync(entry.Path, ct);
 
         if (isDirectory)
@@ -127,6 +136,13 @@ public sealed class SyncEngine : BackgroundService
     private async Task PushAsync(SyncEntry entry, CancellationToken ct)
     {
         var full = PathUtil.ResolveWithinRoot(_options.SyncDirectory, entry.Path);
+
+        if (entry.Tombstone)
+        {
+            await _peer.DeleteAsync(entry.Path, entry.Mtime, ct);
+            _logger.LogDebug("Pushed deletion of {Path}", entry.Path);
+            return;
+        }
 
         if (entry.Type == EntryType.Directory)
         {

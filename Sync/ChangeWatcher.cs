@@ -91,13 +91,18 @@ public sealed class ChangeWatcher : BackgroundService
             var scanned = _scanner.Scan(_options.SyncDirectory, _ignored);
             var byPath = scanned.ToDictionary(e => e.Path, StringComparer.Ordinal);
 
-            var removed = 0;
+            var changed = 0;
             foreach (var existing in _store.GetEntries())
             {
+                if (existing.Tombstone)
+                    continue; // tombstones persist until reconciliation settles
+
                 if (!byPath.ContainsKey(existing.Path))
                 {
-                    _store.Remove(existing.Path);
-                    removed++;
+                    // Vanished since the last scan (e.g. a missed watcher event):
+                    // record a deletion tombstone so the delete still propagates.
+                    _store.Upsert(new SyncEntry(existing.Path, existing.Type, DirectoryScanner.UtcNowMs(), Tombstone: true));
+                    changed++;
                 }
             }
 
@@ -105,10 +110,13 @@ public sealed class ChangeWatcher : BackgroundService
             {
                 var old = _store.GetEntry(entry.Path);
                 if (old is null || old != entry)
+                {
                     _store.Upsert(entry);
+                    changed++;
+                }
             }
 
-            _logger.LogDebug("Rescan: {Entries} entries, {Removed} removed", scanned.Count, removed);
+            _logger.LogDebug("Rescan: {Entries} entries, {Changed} changed", scanned.Count, changed);
         }
         catch (Exception ex)
         {
@@ -138,7 +146,16 @@ public sealed class ChangeWatcher : BackgroundService
         if (IsIgnored(fullPath))
             return;
 
-        _store.Remove(DirectoryScanner.ToRelative(Path.GetFullPath(_options.SyncDirectory), Path.GetFullPath(fullPath)));
+        var relative = DirectoryScanner.ToRelative(
+            Path.GetFullPath(_options.SyncDirectory), Path.GetFullPath(fullPath));
+
+        // If it's already a tombstone (e.g. a deletion we applied), keep it.
+        var existing = _store.GetEntry(relative);
+        if (existing is { Tombstone: true })
+            return;
+
+        var type = existing?.Type ?? EntryType.File;
+        _store.Upsert(new SyncEntry(relative, type, DirectoryScanner.UtcNowMs(), Tombstone: true));
     }
 
     private bool IsIgnored(string fullPath) => _ignored.Contains(Path.GetFullPath(fullPath));

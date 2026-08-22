@@ -104,4 +104,7 @@ public sealed class DirectoryScanner
 
     private static DateTimeOffset TruncateToMs(DateTimeOffset value)
         => DateTimeOffset.FromUnixTimeMilliseconds(value.ToUnixTimeMilliseconds());
+
+    /// <summary>Current UTC time truncated to millisecond precision.</summary>
+    public static DateTimeOffset UtcNowMs() => TruncateToMs(DateTimeOffset.UtcNow);
 }
