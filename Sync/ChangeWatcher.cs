@@ -18,6 +18,7 @@ public sealed class ChangeWatcher : BackgroundService
     private readonly DirectoryScanner _scanner;
     private readonly ILogger<ChangeWatcher> _logger;
     private readonly HashSet<string> _ignored;
+    private readonly StringComparer _pathComparer;
 
     public ChangeWatcher(
         BeamOptions options,
@@ -29,6 +30,7 @@ public sealed class ChangeWatcher : BackgroundService
         _store = store;
         _scanner = scanner;
         _logger = logger;
+        _pathComparer = PathUtil.Comparer(options.IgnoreCase);
         _ignored = BuildIgnoredPaths(options);
     }
 
@@ -89,7 +91,7 @@ public sealed class ChangeWatcher : BackgroundService
         try
         {
             var scanned = _scanner.Scan(_options.SyncDirectory, _ignored);
-            var byPath = scanned.ToDictionary(e => e.Path, StringComparer.Ordinal);
+            var byPath = scanned.ToDictionary(e => e.Path, _pathComparer);
 
             var changed = 0;
             foreach (var existing in _store.GetEntries())
@@ -174,7 +176,7 @@ public sealed class ChangeWatcher : BackgroundService
 
     private static HashSet<string> BuildIgnoredPaths(BeamOptions options)
     {
-        var ignored = new HashSet<string>(StringComparer.Ordinal);
+        var ignored = new HashSet<string>(options.IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         if (string.IsNullOrWhiteSpace(options.DatabasePath))
             return ignored;
 

@@ -31,6 +31,12 @@ public sealed class BeamOptions
     /// <summary>Maximum retry backoff, in seconds, while the peer is unreachable.</summary>
     public int MaxBackoffSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// Compare paths case-insensitively. Defaults to true on Windows (whose
+    /// filesystems are typically case-insensitive) and false elsewhere.
+    /// </summary>
+    public bool IgnoreCase { get; set; } = OperatingSystem.IsWindows();
+
     /// <summary>Returns configuration errors; empty when the options are valid.</summary>
     public IReadOnlyList<string> Validate()
     {

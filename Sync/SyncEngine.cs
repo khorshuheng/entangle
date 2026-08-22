@@ -83,7 +83,7 @@ public sealed class SyncEngine : BackgroundService
     {
         var local = _store.GetEntries().ToList();
         var (peerId, peer) = await _peer.ExchangeStateAsync(_options.PeerId, local, ct);
-        var actions = Reconciler.Plan(local, peer, _options.PeerId, peerId);
+        var actions = Reconciler.Plan(local, peer, _options.PeerId, peerId, _options.IgnoreCase);
 
         if (actions.Count > 0)
         {
@@ -119,11 +119,11 @@ public sealed class SyncEngine : BackgroundService
 
     private async Task PullAsync(SyncEntry entry, CancellationToken ct)
     {
-        var full = PathUtil.ResolveWithinRoot(_options.SyncDirectory, entry.Path);
+        var full = PathUtil.ResolveWithinRoot(_options.SyncDirectory, entry.Path, _options.IgnoreCase);
 
         if (entry.Tombstone)
         {
-            PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full);
+            PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full, _options.IgnoreCase);
             _store.Upsert(entry);
             _logger.LogDebug("Deleted {Path} (peer tombstone)", entry.Path);
             return;
@@ -153,7 +153,7 @@ public sealed class SyncEngine : BackgroundService
 
     private async Task PushAsync(SyncEntry entry, CancellationToken ct)
     {
-        var full = PathUtil.ResolveWithinRoot(_options.SyncDirectory, entry.Path);
+        var full = PathUtil.ResolveWithinRoot(_options.SyncDirectory, entry.Path, _options.IgnoreCase);
 
         if (entry.Tombstone)
         {

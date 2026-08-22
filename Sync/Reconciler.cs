@@ -13,10 +13,12 @@ public static class Reconciler
         IReadOnlyCollection<SyncEntry> local,
         IReadOnlyCollection<SyncEntry> peer,
         string myPeerId,
-        string peerId)
+        string peerId,
+        bool ignoreCase = false)
     {
-        var localByPath = local.ToDictionary(e => e.Path, StringComparer.Ordinal);
-        var peerByPath = peer.ToDictionary(e => e.Path, StringComparer.Ordinal);
+        var comparer = PathUtil.Comparer(ignoreCase);
+        var localByPath = local.ToDictionary(e => e.Path, comparer);
+        var peerByPath = peer.ToDictionary(e => e.Path, comparer);
         var actions = new List<ReconcileAction>();
 
         foreach (var path in localByPath.Keys.Union(peerByPath.Keys))

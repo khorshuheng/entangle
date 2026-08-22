@@ -73,7 +73,7 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
             var type = existing?.Type ?? EntryType.File;
             var mtime = DateTimeOffset.FromUnixTimeMilliseconds(request.MtimeUnixMs);
 
-            PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full);
+            PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full, _options.IgnoreCase);
             _store.Upsert(new SyncEntry(request.Path, type, mtime, Tombstone: true));
 
             return Task.FromResult(new PutFileReply { Accepted = true });
@@ -109,7 +109,7 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
     {
         try
         {
-            return PathUtil.ResolveWithinRoot(_options.SyncDirectory, relativePath);
+            return PathUtil.ResolveWithinRoot(_options.SyncDirectory, relativePath, _options.IgnoreCase);
         }
         catch (InvalidOperationException ex)
         {

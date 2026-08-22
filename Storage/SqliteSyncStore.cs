@@ -12,12 +12,15 @@ public sealed class SqliteSyncStore : ISyncStore, IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly bool _ignoreCase;
     private bool _disposed;
 
-    public SqliteSyncStore(string databasePath)
+    public SqliteSyncStore(string databasePath, bool ignoreCase = false)
     {
         if (string.IsNullOrWhiteSpace(databasePath))
             throw new ArgumentException("Database path must not be empty.", nameof(databasePath));
+
+        _ignoreCase = ignoreCase;
 
         var builder = new SqliteConnectionStringBuilder
         {
@@ -118,10 +121,12 @@ public sealed class SqliteSyncStore : ISyncStore, IDisposable
 
     private void CreateSchema()
     {
+        var pathCollation = _ignoreCase ? "COLLATE NOCASE" : "";
+
         using var cmd = _connection.CreateCommand();
-        cmd.CommandText = """
+        cmd.CommandText = $@"
             CREATE TABLE IF NOT EXISTS entries (
-                path         TEXT PRIMARY KEY,
+                path         TEXT PRIMARY KEY {pathCollation},
                 type         INTEGER NOT NULL,
                 mtime_ms     INTEGER NOT NULL,
                 tombstone    INTEGER NOT NULL,
@@ -133,7 +138,7 @@ public sealed class SqliteSyncStore : ISyncStore, IDisposable
                 tombstone     INTEGER NOT NULL,
                 created_at_ms INTEGER NOT NULL
             );
-            """;
+            ";
         cmd.ExecuteNonQuery();
     }
 

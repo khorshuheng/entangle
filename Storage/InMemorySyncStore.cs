@@ -6,9 +6,15 @@ namespace Beam.Storage;
 /// <summary>Thread-safe in-memory implementation of <see cref="ISyncStore"/>.</summary>
 public sealed class InMemorySyncStore : ISyncStore
 {
-    private readonly ConcurrentDictionary<string, SyncEntry> _entries = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, SyncEntry> _entries;
     private readonly ConcurrentQueue<PendingChange> _pending = new();
     private long _nextPendingId;
+
+    public InMemorySyncStore(bool ignoreCase = false)
+    {
+        _entries = new ConcurrentDictionary<string, SyncEntry>(
+            ignoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    }
 
     public IReadOnlyCollection<SyncEntry> GetEntries() => _entries.Values.ToArray();
 
