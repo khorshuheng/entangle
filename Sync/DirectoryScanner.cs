@@ -14,12 +14,12 @@ public sealed class DirectoryScanner
     public DirectoryScanner(ILogger<DirectoryScanner> logger) => _logger = logger;
 
     /// <summary>Recursively scan a root directory.</summary>
-    public IReadOnlyList<SyncEntry> Scan(string root, ISet<string>? ignored = null)
+    public IReadOnlyList<SyncEntry> Scan(string root, IgnoreMatcher? ignore = null)
     {
         var fullRoot = Path.GetFullPath(root);
-        var ignoredSet = ignored ?? new HashSet<string>(StringComparer.Ordinal);
+        var matcher = ignore ?? new IgnoreMatcher(fullRoot);
         var result = new List<SyncEntry>();
-        Walk(fullRoot, fullRoot, ignoredSet, result);
+        Walk(fullRoot, fullRoot, matcher, result);
         return result;
     }
 
@@ -27,14 +27,14 @@ public sealed class DirectoryScanner
     /// Produce the entry for a single changed path, or null if it is ignored,
     /// the root itself, or no longer exists.
     /// </summary>
-    public SyncEntry? ScanSingle(string fullPath, string root, ISet<string>? ignored = null)
+    public SyncEntry? ScanSingle(string fullPath, string root, IgnoreMatcher? ignore = null)
     {
-        var ignoredSet = ignored ?? new HashSet<string>(StringComparer.Ordinal);
         var full = Path.GetFullPath(fullPath);
-        if (ignoredSet.Contains(full))
+        var fullRoot = Path.GetFullPath(root);
+        var matcher = ignore ?? new IgnoreMatcher(fullRoot);
+        if (matcher.IsIgnored(full) || IsSymlink(full))
             return null;
 
-        var fullRoot = Path.GetFullPath(root);
         var relative = ToRelative(fullRoot, full);
         if (relative.Length == 0)
             return null; // the root directory itself
@@ -48,7 +48,7 @@ public sealed class DirectoryScanner
         return null;
     }
 
-    private void Walk(string root, string current, ISet<string> ignored, List<SyncEntry> result)
+    private void Walk(string root, string current, IgnoreMatcher ignore, List<SyncEntry> result)
     {
         string[] dirs;
         string[] files;
@@ -66,17 +66,17 @@ public sealed class DirectoryScanner
         foreach (var dir in dirs)
         {
             var full = Path.GetFullPath(dir);
-            if (ignored.Contains(full))
+            if (ignore.IsIgnored(full) || IsSymlink(full))
                 continue;
 
             result.Add(new SyncEntry(ToRelative(root, full), EntryType.Directory, MtimeOfDirectory(full)));
-            Walk(root, full, ignored, result);
+            Walk(root, full, ignore, result);
         }
 
         foreach (var file in files)
         {
             var full = Path.GetFullPath(file);
-            if (ignored.Contains(full))
+            if (ignore.IsIgnored(full) || IsSymlink(full))
                 continue;
 
             try
@@ -87,6 +87,26 @@ public sealed class DirectoryScanner
             {
                 _logger.LogWarning(ex, "Skipping unreadable file {File}", full);
             }
+        }
+    }
+
+    /// <summary>
+    /// Symlinks are neither followed nor synced. A directory link could recurse
+    /// forever or drag in an unrelated tree, and link identity is not something
+    /// the wire protocol carries, so pretending they are ordinary entries would
+    /// let the two peers disagree about the same path. Skipping is the policy.
+    /// </summary>
+    internal static bool IsSymlink(string fullPath)
+    {
+        try
+        {
+            return (File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (Exception)
+        {
+            // Vanished or unreadable: not a symlink, and the existence checks
+            // that follow decide what to do with it.
+            return false;
         }
     }
 

@@ -42,4 +42,33 @@ public class ContentHasherTests
         var normalized = ContentHasher.NormalizeLineEndings(input);
         Assert.Equal("a\nb", Encoding.UTF8.GetString(normalized));
     }
+
+    [Fact]
+    public void HashContentMatchesHashFileForTextAndBinary()
+    {
+        // A receiver records HashContent(bytes it was sent); the scanner later
+        // records HashFile(the same bytes on disk). They must agree, or every
+        // transfer would be followed by a spurious re-transfer.
+        var cases = new[]
+        {
+            Encoding.UTF8.GetBytes("plain text\nwithout trailing newline"),
+            Encoding.UTF8.GetBytes("crlf\r\nlines\r\n"),
+            new byte[] { (byte)'b', 0, (byte)'i', (byte)'n', (byte)'\r', (byte)'\n', 0 },
+            Array.Empty<byte>(),
+        };
+
+        foreach (var bytes in cases)
+        {
+            var path = Path.Combine(Path.GetTempPath(), "entangle-hash-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                File.WriteAllBytes(path, bytes);
+                Assert.Equal(ContentHasher.HashFile(path), ContentHasher.HashContent(bytes));
+            }
+            finally
+            {
+                try { File.Delete(path); } catch { }
+            }
+        }
+    }
 }

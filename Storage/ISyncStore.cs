@@ -3,8 +3,9 @@ using Entangle.Model;
 namespace Entangle.Storage;
 
 /// <summary>
-/// Storage abstraction for local sync state. In-memory implementation is used
-/// until persistence lands; a SQLite implementation can be swapped in later.
+/// The local sync state: the known entry for each path. Implementations are
+/// responsible for their own thread safety, since the filesystem watcher and the
+/// sync engine use the store concurrently.
 /// </summary>
 public interface ISyncStore
 {
@@ -19,13 +20,4 @@ public interface ISyncStore
 
     /// <summary>Remove any entry for a path.</summary>
     void Remove(string relativePath);
-
-    /// <summary>Snapshot of pending (not yet confirmed synced) changes.</summary>
-    IReadOnlyCollection<PendingChange> GetPendingChanges();
-
-    /// <summary>Record a local change that needs to reach the peer.</summary>
-    void EnqueueChange(SyncEntry entry);
-
-    /// <summary>Clear pending changes after a successful reconcile.</summary>
-    void ClearPendingChanges();
 }

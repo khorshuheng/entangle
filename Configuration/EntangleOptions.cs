@@ -32,10 +32,38 @@ public sealed class EntangleOptions
     public int MaxBackoffSeconds { get; set; } = 60;
 
     /// <summary>
+    /// Maximum size, in bytes, of a single gRPC message in either direction.
+    /// gRPC's own default is 4 MiB, which silently caps the size of a file the
+    /// service can sync; this is raised so whole-file transfers work for
+    /// normal-sized files.
+    /// </summary>
+    public int MaxMessageSizeBytes { get; set; } = DefaultMaxMessageSizeBytes;
+
+    /// <summary>Default value for <see cref="MaxMessageSizeBytes"/> (64 MiB).</summary>
+    public const int DefaultMaxMessageSizeBytes = 64 * 1024 * 1024;
+
+    /// <summary>
+    /// How long, in days, a deletion tombstone is kept for a path the peer has
+    /// no record of. Tombstones that both sides agree on are reclaimed
+    /// immediately. Such an extra tombstone is not needed for the delete to
+    /// reach the peer (and its absence means the peer holds no file to delete),
+    /// so this defaults to 0; raise it only to protect against a peer whose
+    /// view is transiently partial.
+    /// </summary>
+    public int TombstoneRetentionDays { get; set; }
+
+    /// <summary>
     /// Compare paths case-insensitively. Defaults to true on Windows (whose
     /// filesystems are typically case-insensitive) and false elsewhere.
     /// </summary>
     public bool IgnoreCase { get; set; } = OperatingSystem.IsWindows();
+
+    /// <summary>
+    /// Glob patterns, matched against sync-relative paths, whose matches are
+    /// excluded from sync. Setting this replaces the defaults. Ignoring a path
+    /// stops it syncing locally; it never deletes the peer's copy.
+    /// </summary>
+    public List<string> IgnorePatterns { get; set; } = [".git/", "node_modules/"];
 
     /// <summary>Returns configuration errors; empty when the options are valid.</summary>
     public IReadOnlyList<string> Validate()
@@ -58,6 +86,10 @@ public sealed class EntangleOptions
             errors.Add($"Entangle:SyncIntervalSeconds must be positive (got {SyncIntervalSeconds}).");
         if (MaxBackoffSeconds <= 0)
             errors.Add($"Entangle:MaxBackoffSeconds must be positive (got {MaxBackoffSeconds}).");
+        if (MaxMessageSizeBytes <= 0)
+            errors.Add($"Entangle:MaxMessageSizeBytes must be positive (got {MaxMessageSizeBytes}).");
+        if (TombstoneRetentionDays < 0)
+            errors.Add($"Entangle:TombstoneRetentionDays must not be negative (got {TombstoneRetentionDays}).");
 
         return errors;
     }

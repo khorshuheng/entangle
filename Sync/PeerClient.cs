@@ -1,3 +1,4 @@
+using Entangle.Configuration;
 using Entangle.Model;
 using Entangle.Proto;
 using Google.Protobuf;
@@ -22,12 +23,18 @@ public sealed class PeerClient : IAsyncDisposable
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
     }
 
-    public PeerClient(string peerAddress)
+    public PeerClient(string peerAddress, int maxMessageSizeBytes = EntangleOptions.DefaultMaxMessageSizeBytes)
     {
         if (string.IsNullOrWhiteSpace(peerAddress))
             throw new ArgumentException("Peer address must not be empty.", nameof(peerAddress));
 
-        _channel = GrpcChannel.ForAddress(peerAddress);
+        _channel = GrpcChannel.ForAddress(peerAddress, new GrpcChannelOptions
+        {
+            // Without this the client rejects replies larger than gRPC's 4 MiB
+            // default, so pulling any larger file fails with ResourceExhausted.
+            MaxReceiveMessageSize = maxMessageSizeBytes,
+            MaxSendMessageSize = maxMessageSizeBytes,
+        });
         _client = new SyncRpc.SyncClient(_channel);
     }
 
@@ -54,8 +61,12 @@ public sealed class PeerClient : IAsyncDisposable
         return (reply.Content.ToByteArray(), DateTimeOffset.FromUnixTimeMilliseconds(reply.MtimeUnixMs), reply.IsDirectory);
     }
 
-    /// <summary>Push a file's content (or an empty directory) to the peer.</summary>
-    public async Task PutFileAsync(
+    /// <summary>
+    /// Push a file's content (or an empty directory) to the peer. Returns false
+    /// when the peer refused the path (it ignores it), so the caller can report
+    /// a configuration mismatch instead of retrying invisibly forever.
+    /// </summary>
+    public async Task<bool> PutFileAsync(
         string path,
         byte[] content,
         DateTimeOffset mtime,
@@ -70,11 +81,12 @@ public sealed class PeerClient : IAsyncDisposable
             IsDirectory = isDirectory,
         };
 
-        await _client.PutFileAsync(request, cancellationToken: ct);
+        var reply = await _client.PutFileAsync(request, cancellationToken: ct);
+        return reply.Accepted;
     }
 
     /// <summary>Ask the peer to delete a path (a deletion tombstone).</summary>
-    public async Task DeleteAsync(string path, DateTimeOffset mtime, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(string path, DateTimeOffset mtime, CancellationToken ct = default)
     {
         var request = new FileContent
         {
@@ -83,7 +95,8 @@ public sealed class PeerClient : IAsyncDisposable
             Tombstone = true,
         };
 
-        await _client.PutFileAsync(request, cancellationToken: ct);
+        var reply = await _client.PutFileAsync(request, cancellationToken: ct);
+        return reply.Accepted;
     }
 
     public ValueTask DisposeAsync()

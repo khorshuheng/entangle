@@ -16,22 +16,23 @@ public sealed class ChangeWatcher : BackgroundService
     private readonly EntangleOptions _options;
     private readonly ISyncStore _store;
     private readonly DirectoryScanner _scanner;
+    private readonly IgnoreMatcher _ignore;
     private readonly ILogger<ChangeWatcher> _logger;
-    private readonly HashSet<string> _ignored;
     private readonly StringComparer _pathComparer;
 
     public ChangeWatcher(
         EntangleOptions options,
         ISyncStore store,
         DirectoryScanner scanner,
+        IgnoreMatcher ignore,
         ILogger<ChangeWatcher> logger)
     {
         _options = options;
         _store = store;
         _scanner = scanner;
+        _ignore = ignore;
         _logger = logger;
         _pathComparer = PathUtil.Comparer(options.IgnoreCase);
-        _ignored = BuildIgnoredPaths(options);
     }
 
     /// <summary>
@@ -90,12 +91,30 @@ public sealed class ChangeWatcher : BackgroundService
     {
         try
         {
-            var scanned = _scanner.Scan(_options.SyncDirectory, _ignored);
-            var byPath = scanned.ToDictionary(e => e.Path, _pathComparer);
+            var scanned = _scanner.Scan(_options.SyncDirectory, _ignore);
+            var byPath = PathUtil.IndexByPath(scanned, _pathComparer, (first, second) =>
+                _logger.LogWarning(
+                    "Paths {First} and {Second} collide under the active case-sensitivity; "
+                    + "keeping the first and ignoring the second",
+                    first,
+                    second));
 
             var changed = 0;
             foreach (var existing in _store.GetEntries())
             {
+                if (_ignore.IsIgnoredEntry(existing.Path))
+                {
+                    // The path now matches an ignore pattern (or is the metadata
+                    // database). Ignoring is local policy, not a deletion, so
+                    // drop the entry instead of recording a tombstone that would
+                    // delete the peer's copy. This is checked before the
+                    // tombstone branch so tombstones for newly ignored paths are
+                    // dropped too, rather than lingering un-reconcilable forever.
+                    _store.Remove(existing.Path);
+                    changed++;
+                    continue;
+                }
+
                 if (existing.Tombstone)
                     continue; // tombstones persist until reconciliation settles
 
@@ -105,7 +124,6 @@ public sealed class ChangeWatcher : BackgroundService
                     // record a deletion tombstone so the delete still propagates.
                     var tombstone = new SyncEntry(existing.Path, existing.Type, DirectoryScanner.UtcNowMs(), Tombstone: true);
                     _store.Upsert(tombstone);
-                    _store.EnqueueChange(tombstone);
                     changed++;
                 }
             }
@@ -116,7 +134,6 @@ public sealed class ChangeWatcher : BackgroundService
                 if (old is null || old != entry)
                 {
                     _store.Upsert(entry);
-                    _store.EnqueueChange(entry);
                     changed++;
                 }
             }
@@ -136,14 +153,13 @@ public sealed class ChangeWatcher : BackgroundService
 
         try
         {
-            var entry = _scanner.ScanSingle(fullPath, _options.SyncDirectory, _ignored);
+            var entry = _scanner.ScanSingle(fullPath, _options.SyncDirectory, _ignore);
             if (entry is not null)
             {
                 var old = _store.GetEntry(entry.Path);
                 if (old != entry)
                 {
                     _store.Upsert(entry);
-                    _store.EnqueueChange(entry);
                 }
             }
         }
@@ -169,22 +185,8 @@ public sealed class ChangeWatcher : BackgroundService
         var type = existing?.Type ?? EntryType.File;
         var tombstone = new SyncEntry(relative, type, DirectoryScanner.UtcNowMs(), Tombstone: true);
         _store.Upsert(tombstone);
-        _store.EnqueueChange(tombstone);
     }
 
-    private bool IsIgnored(string fullPath) => _ignored.Contains(Path.GetFullPath(fullPath));
+    private bool IsIgnored(string fullPath) => _ignore.IsIgnored(fullPath);
 
-    private static HashSet<string> BuildIgnoredPaths(EntangleOptions options)
-    {
-        var ignored = new HashSet<string>(options.IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        if (string.IsNullOrWhiteSpace(options.DatabasePath))
-            return ignored;
-
-        var db = Path.GetFullPath(options.DatabasePath);
-        ignored.Add(db);
-        ignored.Add(db + "-wal");
-        ignored.Add(db + "-shm");
-        ignored.Add(db + "-journal");
-        return ignored;
-    }
 }

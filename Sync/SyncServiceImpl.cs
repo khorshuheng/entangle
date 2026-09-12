@@ -17,12 +17,18 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
 {
     private readonly EntangleOptions _options;
     private readonly ISyncStore _store;
+    private readonly IgnoreMatcher _ignore;
     private readonly ILogger<SyncServiceImpl> _logger;
 
-    public SyncServiceImpl(EntangleOptions options, ISyncStore store, ILogger<SyncServiceImpl> logger)
+    public SyncServiceImpl(
+        EntangleOptions options,
+        ISyncStore store,
+        IgnoreMatcher ignore,
+        ILogger<SyncServiceImpl> logger)
     {
         _options = options;
         _store = store;
+        _ignore = ignore;
         _logger = logger;
     }
 
@@ -63,20 +69,31 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
         });
     }
 
-    public override Task<PutFileReply> PutFile(FileContent request, ServerCallContext context)
+    public override async Task<PutFileReply> PutFile(FileContent request, ServerCallContext context)
     {
         var full = ResolveWithinRoot(request.Path);
+
+        // Refuse anything this instance excludes. A peer whose configuration
+        // differs would otherwise push paths we deliberately ignore onto our
+        // disk, including a file named like our own metadata database.
+        if (_ignore.IsIgnored(full))
+        {
+            _logger.LogWarning(
+                "Refused {Path}: it is excluded here (ignore pattern or metadata database)",
+                request.Path);
+            return new PutFileReply { Accepted = false };
+        }
 
         if (request.Tombstone)
         {
             var existing = _store.GetEntry(request.Path);
             var type = existing?.Type ?? EntryType.File;
-            var mtime = DateTimeOffset.FromUnixTimeMilliseconds(request.MtimeUnixMs);
+            var deletedAt = DateTimeOffset.FromUnixTimeMilliseconds(request.MtimeUnixMs);
 
             PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full, _options.IgnoreCase);
-            _store.Upsert(new SyncEntry(request.Path, type, mtime, Tombstone: true));
+            _store.Upsert(new SyncEntry(request.Path, type, deletedAt, Tombstone: true));
 
-            return Task.FromResult(new PutFileReply { Accepted = true });
+            return new PutFileReply { Accepted = true };
         }
 
         if (request.IsDirectory)
@@ -84,21 +101,38 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
             if (File.Exists(full))
                 File.Delete(full);
             Directory.CreateDirectory(full);
-        }
-        else
-        {
-            if (Directory.Exists(full))
-                Directory.Delete(full, recursive: true);
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-            File.WriteAllBytes(full, request.Content.ToByteArray());
-            if (request.MtimeUnixMs != 0)
-            {
-                var mtime = DateTimeOffset.FromUnixTimeMilliseconds(request.MtimeUnixMs).UtcDateTime;
-                File.SetLastWriteTimeUtc(full, mtime);
-            }
+
+            // Record the state we just created, exactly as the scanner would
+            // compute it, so a missed watcher event cannot leave the store stale.
+            _store.Upsert(new SyncEntry(
+                request.Path,
+                EntryType.Directory,
+                DirectoryScanner.MtimeOfDirectory(full)));
+
+            return new PutFileReply { Accepted = true };
         }
 
-        return Task.FromResult(new PutFileReply { Accepted = true });
+        if (Directory.Exists(full))
+            Directory.Delete(full, recursive: true);
+
+        var mtime = request.MtimeUnixMs != 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(request.MtimeUnixMs)
+            : (DateTimeOffset?)null;
+
+        var content = request.Content.ToByteArray();
+        await PathUtil.WriteAllBytesAtomicAsync(full, content, mtime);
+
+        // Record the converged entry immediately. Relying on the watcher alone
+        // leaves the store stale whenever an event is dropped, which makes the
+        // next reconcile pass re-pull a file we already have.
+        _store.Upsert(new SyncEntry(
+            request.Path,
+            EntryType.File,
+            mtime ?? DirectoryScanner.MtimeOfFile(full),
+            false,
+            ContentHasher.HashContent(content)));
+
+        return new PutFileReply { Accepted = true };
     }
 
     /// <summary>

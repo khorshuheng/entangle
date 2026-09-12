@@ -10,13 +10,16 @@ namespace Entangle.Sync;
 public static class ContentHasher
 {
     /// <summary>Hash a file's bytes, returning an uppercase hex digest.</summary>
-    public static string HashFile(string path)
-    {
-        var bytes = File.ReadAllBytes(path);
-        if (!LooksBinary(bytes))
-            bytes = NormalizeLineEndings(bytes);
-        return HashBytes(bytes);
-    }
+    public static string HashFile(string path) => HashContent(File.ReadAllBytes(path));
+
+    /// <summary>
+    /// Hash in-memory content exactly as <see cref="HashFile"/> hashes the same
+    /// bytes on disk. A receiver must use this (not <see cref="HashBytes"/>) when
+    /// recording what it just wrote, or the stored hash would disagree with the
+    /// one the scanner later computes for text files and the path would churn.
+    /// </summary>
+    public static string HashContent(byte[] bytes)
+        => HashBytes(LooksBinary(bytes) ? bytes : NormalizeLineEndings(bytes));
 
     /// <summary>Hash a stream's bytes, returning an uppercase hex digest.</summary>
     public static string HashStream(Stream stream)

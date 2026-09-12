@@ -13,11 +13,23 @@ public static class EntangleApp
         var builder = WebApplication.CreateBuilder();
 
         builder.Services.AddSingleton(options);
-        builder.Services.AddGrpc();
+        builder.Services.AddSingleton<SyncMetrics>();
+        builder.Services.AddSingleton(new IgnoreMatcher(
+            options.SyncDirectory,
+            options.DatabasePath,
+            options.IgnorePatterns,
+            options.IgnoreCase));
+        builder.Services.AddGrpc(grpc =>
+        {
+            // gRPC's 4 MiB default would silently cap the file size this
+            // service can move; align both directions with the configured cap.
+            grpc.MaxReceiveMessageSize = options.MaxMessageSizeBytes;
+            grpc.MaxSendMessageSize = options.MaxMessageSizeBytes;
+        });
         builder.Services.AddSingleton<DirectoryScanner>();
         builder.Services.AddSingleton<ISyncStore>(_ => new SqliteSyncStore(options.DatabasePath, options.IgnoreCase));
         builder.Services.AddHostedService<ChangeWatcher>();
-        builder.Services.AddSingleton(new PeerClient(options.PeerAddress));
+        builder.Services.AddSingleton(new PeerClient(options.PeerAddress, options.MaxMessageSizeBytes));
         builder.Services.AddHostedService<SyncEngine>();
 
         builder.WebHost.ConfigureKestrel(kestrel =>

@@ -4,9 +4,15 @@ namespace Entangle.Sync;
 
 public enum ReconcileActionKind
 {
-    None = 0,
     Push = 1,
     Pull = 2,
+
+    /// <summary>
+    /// Drop a local tombstone whose deletion is settled: both sides agree the
+    /// path is deleted, or the peer has no record of the path at all and the
+    /// tombstone is old enough to rule out a partial peer view.
+    /// </summary>
+    Remove = 3,
 }
 
 /// <summary>

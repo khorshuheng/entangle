@@ -84,59 +84,19 @@ public sealed class SqliteSyncStore : ISyncStore, IDisposable
         cmd.ExecuteNonQuery();
     });
 
-    public IReadOnlyCollection<PendingChange> GetPendingChanges() => Run(() =>
-    {
-        var changes = new List<PendingChange>();
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "SELECT id, path, tombstone, created_at_ms FROM pending_changes ORDER BY id;";
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            changes.Add(new PendingChange(
-                reader.GetInt64(0),
-                reader.GetString(1),
-                reader.GetInt64(2) != 0,
-                DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(3))));
-        }
-
-        return changes;
-    });
-
-    public void EnqueueChange(SyncEntry entry) => Run(() =>
-    {
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "INSERT INTO pending_changes (path, tombstone, created_at_ms) VALUES ($path, $tombstone, $created);";
-        cmd.Parameters.AddWithValue("$path", entry.Path);
-        cmd.Parameters.AddWithValue("$tombstone", entry.Tombstone ? 1 : 0);
-        cmd.Parameters.AddWithValue("$created", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-        cmd.ExecuteNonQuery();
-    });
-
-    public void ClearPendingChanges() => Run(() =>
-    {
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "DELETE FROM pending_changes;";
-        cmd.ExecuteNonQuery();
-    });
-
     private void CreateSchema()
     {
         var pathCollation = _ignoreCase ? "COLLATE NOCASE" : "";
 
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = $@"
+            DROP TABLE IF EXISTS pending_changes;
             CREATE TABLE IF NOT EXISTS entries (
                 path         TEXT PRIMARY KEY {pathCollation},
                 type         INTEGER NOT NULL,
                 mtime_ms     INTEGER NOT NULL,
                 tombstone    INTEGER NOT NULL,
                 content_hash TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS pending_changes (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                path          TEXT NOT NULL,
-                tombstone     INTEGER NOT NULL,
-                created_at_ms INTEGER NOT NULL
             );
             ";
         cmd.ExecuteNonQuery();
