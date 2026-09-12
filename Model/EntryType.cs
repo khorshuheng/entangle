@@ -1,4 +1,4 @@
-namespace Beam.Model;
+namespace Entangle.Model;
 
 /// <summary>Kind of filesystem entry a sync entry describes.</summary>
 public enum EntryType

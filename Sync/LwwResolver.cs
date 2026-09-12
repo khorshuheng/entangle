@@ -1,6 +1,6 @@
-using Beam.Model;
+using Entangle.Model;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// Last-write-wins conflict resolution. The entry with the newer last-modified

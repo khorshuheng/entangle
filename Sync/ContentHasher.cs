@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// SHA-256 content hashing used to detect content changes. Text files are

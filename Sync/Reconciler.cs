@@ -1,6 +1,6 @@
-using Beam.Model;
+using Entangle.Model;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// Compares local and peer state per relative path and produces the list of

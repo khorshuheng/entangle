@@ -1,8 +1,8 @@
-using Beam.Configuration;
-using Beam.Model;
-using Beam.Storage;
+using Entangle.Configuration;
+using Entangle.Model;
+using Entangle.Storage;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// Background service that periodically exchanges state with the peer and
@@ -12,13 +12,13 @@ namespace Beam.Sync;
 /// </summary>
 public sealed class SyncEngine : BackgroundService
 {
-    private readonly BeamOptions _options;
+    private readonly EntangleOptions _options;
     private readonly ISyncStore _store;
     private readonly PeerClient _peer;
     private readonly ILogger<SyncEngine> _logger;
 
     public SyncEngine(
-        BeamOptions options,
+        EntangleOptions options,
         ISyncStore store,
         PeerClient peer,
         ILogger<SyncEngine> logger)

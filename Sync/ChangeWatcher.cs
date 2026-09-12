@@ -1,8 +1,8 @@
-using Beam.Configuration;
-using Beam.Model;
-using Beam.Storage;
+using Entangle.Configuration;
+using Entangle.Model;
+using Entangle.Storage;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// Background service that keeps the local sync store in step with the
@@ -13,7 +13,7 @@ namespace Beam.Sync;
 /// </summary>
 public sealed class ChangeWatcher : BackgroundService
 {
-    private readonly BeamOptions _options;
+    private readonly EntangleOptions _options;
     private readonly ISyncStore _store;
     private readonly DirectoryScanner _scanner;
     private readonly ILogger<ChangeWatcher> _logger;
@@ -21,7 +21,7 @@ public sealed class ChangeWatcher : BackgroundService
     private readonly StringComparer _pathComparer;
 
     public ChangeWatcher(
-        BeamOptions options,
+        EntangleOptions options,
         ISyncStore store,
         DirectoryScanner scanner,
         ILogger<ChangeWatcher> logger)
@@ -174,7 +174,7 @@ public sealed class ChangeWatcher : BackgroundService
 
     private bool IsIgnored(string fullPath) => _ignored.Contains(Path.GetFullPath(fullPath));
 
-    private static HashSet<string> BuildIgnoredPaths(BeamOptions options)
+    private static HashSet<string> BuildIgnoredPaths(EntangleOptions options)
     {
         var ignored = new HashSet<string>(options.IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         if (string.IsNullOrWhiteSpace(options.DatabasePath))

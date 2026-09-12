@@ -1,12 +1,12 @@
-using Beam.Configuration;
-using Beam.Model;
-using Beam.Proto;
-using Beam.Storage;
+using Entangle.Configuration;
+using Entangle.Model;
+using Entangle.Proto;
+using Entangle.Storage;
 using Google.Protobuf;
 using Grpc.Core;
-using SyncRpc = Beam.Proto.Sync;
+using SyncRpc = Entangle.Proto.Sync;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// gRPC service exposing this peer's state and file content to the other peer.
@@ -15,11 +15,11 @@ namespace Beam.Sync;
 /// </summary>
 public sealed class SyncServiceImpl : SyncRpc.SyncBase
 {
-    private readonly BeamOptions _options;
+    private readonly EntangleOptions _options;
     private readonly ISyncStore _store;
     private readonly ILogger<SyncServiceImpl> _logger;
 
-    public SyncServiceImpl(BeamOptions options, ISyncStore store, ILogger<SyncServiceImpl> logger)
+    public SyncServiceImpl(EntangleOptions options, ISyncStore store, ILogger<SyncServiceImpl> logger)
     {
         _options = options;
         _store = store;

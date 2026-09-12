@@ -11,9 +11,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="Beam.Tests\**" />
-    <Content Remove="Beam.Tests\**" />
-    <None Remove="Beam.Tests\**" />
+    <Compile Remove="Entangle.Tests\**" />
+    <Content Remove="Entangle.Tests\**" />
+    <None Remove="Entangle.Tests\**" />
   </ItemGroup>
 
   <ItemGroup>

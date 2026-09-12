@@ -1,10 +1,10 @@
-using Beam.Model;
-using Beam.Proto;
+using Entangle.Model;
+using Entangle.Proto;
 using Google.Protobuf;
 using Grpc.Net.Client;
-using SyncRpc = Beam.Proto.Sync;
+using SyncRpc = Entangle.Proto.Sync;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// gRPC client for talking to the configured peer. Wraps the generated client
@@ -17,7 +17,7 @@ public sealed class PeerClient : IAsyncDisposable
 
     static PeerClient()
     {
-        // Allow plaintext (h2c) HTTP/2, which is how Beam peers talk to each
+        // Allow plaintext (h2c) HTTP/2, which is how Entangle peers talk to each
         // other on a LAN without TLS.
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
     }

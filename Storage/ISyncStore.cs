@@ -1,6 +1,6 @@
-using Beam.Model;
+using Entangle.Model;
 
-namespace Beam.Storage;
+namespace Entangle.Storage;
 
 /// <summary>
 /// Storage abstraction for local sync state. In-memory implementation is used

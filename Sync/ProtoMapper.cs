@@ -1,7 +1,7 @@
-using Beam.Model;
-using Beam.Proto;
+using Entangle.Model;
+using Entangle.Proto;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>Maps between the domain <see cref="SyncEntry"/> and the wire type.</summary>
 public static class ProtoMapper

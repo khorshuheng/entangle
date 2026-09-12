@@ -1,7 +1,7 @@
-using Beam.Model;
+using Entangle.Model;
 using Microsoft.Data.Sqlite;
 
-namespace Beam.Storage;
+namespace Entangle.Storage;
 
 /// <summary>
 /// SQLite-backed <see cref="ISyncStore"/> persisting sync entries and the

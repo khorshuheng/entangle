@@ -1,23 +1,23 @@
 using System.Net;
 using System.Net.Sockets;
-using Beam;
-using Beam.Configuration;
+using Entangle;
+using Entangle.Configuration;
 using Microsoft.AspNetCore.Builder;
 
-namespace Beam.Tests;
+namespace Entangle.Tests;
 
 /// <summary>
-/// Linux-linux integration tests: two in-process Beam peers on different
+/// Linux-linux integration tests: two in-process Entangle peers on different
 /// directories and ports, exercising add/modify/delete propagation, LWW
 /// conflict resolution, and offline re-sync.
 /// </summary>
 public sealed class SyncIntegrationTests : IAsyncLifetime
 {
-    private readonly string _dirA = Path.Combine(Path.GetTempPath(), "beam-it-a-" + Guid.NewGuid().ToString("N"));
-    private readonly string _dirB = Path.Combine(Path.GetTempPath(), "beam-it-b-" + Guid.NewGuid().ToString("N"));
+    private readonly string _dirA = Path.Combine(Path.GetTempPath(), "entangle-it-a-" + Guid.NewGuid().ToString("N"));
+    private readonly string _dirB = Path.Combine(Path.GetTempPath(), "entangle-it-b-" + Guid.NewGuid().ToString("N"));
 
-    private BeamOptions _optionsA = null!;
-    private BeamOptions _optionsB = null!;
+    private EntangleOptions _optionsA = null!;
+    private EntangleOptions _optionsB = null!;
     private WebApplication _a = null!;
     private WebApplication _b = null!;
 
@@ -32,8 +32,8 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
         _optionsA = Options(_dirA, portA, portB, "a");
         _optionsB = Options(_dirB, portB, portA, "b");
 
-        _a = BeamApp.Build(_optionsA);
-        _b = BeamApp.Build(_optionsB);
+        _a = EntangleApp.Build(_optionsA);
+        _b = EntangleApp.Build(_optionsB);
 
         await _a.StartAsync();
         await _b.StartAsync();
@@ -96,7 +96,7 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
         await Task.Delay(TimeSpan.FromSeconds(2));
 
         // Bring B back and verify it converges.
-        _b = BeamApp.Build(_optionsB);
+        _b = EntangleApp.Build(_optionsB);
         await _b.StartAsync();
 
         await WaitForAsync(() =>
@@ -104,10 +104,10 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
             && File.ReadAllText(Path.Combine(_dirB, "offline.txt")) == "offline");
     }
 
-    private static BeamOptions Options(string dir, int port, int peerPort, string peerId) => new()
+    private static EntangleOptions Options(string dir, int port, int peerPort, string peerId) => new()
     {
         SyncDirectory = dir,
-        DatabasePath = Path.Combine(dir, "beam.db"), // inside the sync dir to exercise ignore logic
+        DatabasePath = Path.Combine(dir, "entangle.db"), // inside the sync dir to exercise ignore logic
         Port = port,
         PeerAddress = $"http://127.0.0.1:{peerPort}",
         PeerId = peerId,

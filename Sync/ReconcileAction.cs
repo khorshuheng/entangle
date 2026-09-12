@@ -1,6 +1,6 @@
-using Beam.Model;
+using Entangle.Model;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 public enum ReconcileActionKind
 {

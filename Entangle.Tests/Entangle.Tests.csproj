@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Beam.csproj" />
+    <ProjectReference Include="..\Entangle.csproj" />
   </ItemGroup>
 
 </Project>

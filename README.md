@@ -1,4 +1,4 @@
-# Beam
+# Entangle
 
 A bidirectional file/directory sync service built as a pair of peer gRPC
 services on .NET 10. Each peer watches a configurable directory and keeps it
@@ -21,7 +21,7 @@ sudo pacman -S aspnet-targeting-pack aspnet-runtime
 ## Configuration
 
 Configuration is read from appsettings.json, environment variables
-(`Beam__Key`), or CLI args (`--Beam:Key`):
+(`Entangle__Key`), or CLI args (`--Entangle:Key`):
 
 | Key                    | Description                                              |
 | ---------------------- | -------------------------------------------------------- |

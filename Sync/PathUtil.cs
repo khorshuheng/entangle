@@ -1,4 +1,4 @@
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>Helpers for resolving sync-relative paths safely within a root.</summary>
 public static class PathUtil

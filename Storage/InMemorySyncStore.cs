@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using Beam.Model;
+using Entangle.Model;
 
-namespace Beam.Storage;
+namespace Entangle.Storage;
 
 /// <summary>Thread-safe in-memory implementation of <see cref="ISyncStore"/>.</summary>
 public sealed class InMemorySyncStore : ISyncStore

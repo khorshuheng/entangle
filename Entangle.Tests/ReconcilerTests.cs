@@ -1,7 +1,7 @@
-using Beam.Model;
-using Beam.Sync;
+using Entangle.Model;
+using Entangle.Sync;
 
-namespace Beam.Tests;
+namespace Entangle.Tests;
 
 public class ReconcilerTests
 {

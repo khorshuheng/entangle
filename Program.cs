@@ -1,33 +1,33 @@
-using Beam;
-using Beam.Configuration;
+using Entangle;
+using Entangle.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Load and validate configuration, failing fast on invalid values.
-var beam = builder.Configuration.GetSection("Beam").Get<BeamOptions>() ?? new BeamOptions();
-var errors = beam.Validate();
+var entangle = builder.Configuration.GetSection("Entangle").Get<EntangleOptions>() ?? new EntangleOptions();
+var errors = entangle.Validate();
 if (errors.Count > 0)
 {
     foreach (var error in errors)
-        Console.Error.WriteLine($"Beam configuration error: {error}");
+        Console.Error.WriteLine($"Entangle configuration error: {error}");
 
-    throw new InvalidOperationException("Invalid Beam configuration: " + string.Join("; ", errors));
+    throw new InvalidOperationException("Invalid Entangle configuration: " + string.Join("; ", errors));
 }
 
 // Resolve relative paths once, against the content root, so every consumer
 // (scanner, watcher, store) operates on the same absolute paths.
-beam.SyncDirectory = Path.GetFullPath(beam.SyncDirectory);
-beam.DatabasePath = Path.GetFullPath(beam.DatabasePath);
+entangle.SyncDirectory = Path.GetFullPath(entangle.SyncDirectory);
+entangle.DatabasePath = Path.GetFullPath(entangle.DatabasePath);
 
 // The sync directory must be usable before we start watching it.
 try
 {
-    Directory.CreateDirectory(beam.SyncDirectory);
+    Directory.CreateDirectory(entangle.SyncDirectory);
 }
 catch (Exception ex)
 {
     throw new InvalidOperationException(
-        $"Beam:SyncDirectory '{beam.SyncDirectory}' is not usable: {ex.Message}", ex);
+        $"Entangle:SyncDirectory '{entangle.SyncDirectory}' is not usable: {ex.Message}", ex);
 }
 
-BeamApp.Build(beam).Run();
+EntangleApp.Build(entangle).Run();

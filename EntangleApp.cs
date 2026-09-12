@@ -1,14 +1,14 @@
-using Beam.Configuration;
-using Beam.Storage;
-using Beam.Sync;
+using Entangle.Configuration;
+using Entangle.Storage;
+using Entangle.Sync;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
-namespace Beam;
+namespace Entangle;
 
-/// <summary>Builds a configured Beam peer <see cref="WebApplication"/>.</summary>
-public static class BeamApp
+/// <summary>Builds a configured Entangle peer <see cref="WebApplication"/>.</summary>
+public static class EntangleApp
 {
-    public static WebApplication Build(BeamOptions options)
+    public static WebApplication Build(EntangleOptions options)
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -28,7 +28,7 @@ public static class BeamApp
         var app = builder.Build();
 
         app.MapGrpcService<SyncServiceImpl>();
-        app.MapGet("/", () => "Beam sync service");
+        app.MapGet("/", () => "Entangle sync service");
 
         return app;
     }

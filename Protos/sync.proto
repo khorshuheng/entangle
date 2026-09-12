@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option csharp_namespace = "Beam.Proto";
+option csharp_namespace = "Entangle.Proto";
 
-package beam;
+package entangle;
 
 // Bidirectional file/directory sync between two peers.
 service Sync {

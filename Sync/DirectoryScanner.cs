@@ -1,6 +1,6 @@
-using Beam.Model;
+using Entangle.Model;
 
-namespace Beam.Sync;
+namespace Entangle.Sync;
 
 /// <summary>
 /// Walks the synced directory and produces <see cref="SyncEntry"/> records with

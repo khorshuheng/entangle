@@ -1,4 +1,4 @@
-namespace Beam.Model;
+namespace Entangle.Model;
 
 /// <summary>
 /// A local change that has not yet been confirmed synced to the peer. Entries

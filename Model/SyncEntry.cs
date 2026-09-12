@@ -1,4 +1,4 @@
-namespace Beam.Model;
+namespace Entangle.Model;
 
 /// <summary>
 /// A single filesystem entry in sync state. Paths are forward-slash relative

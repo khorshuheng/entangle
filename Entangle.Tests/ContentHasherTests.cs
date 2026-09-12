@@ -1,7 +1,7 @@
 using System.Text;
-using Beam.Sync;
+using Entangle.Sync;
 
-namespace Beam.Tests;
+namespace Entangle.Tests;
 
 public class ContentHasherTests
 {
