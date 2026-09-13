@@ -35,7 +35,7 @@ Configuration is read from appsettings.json, environment variables
 | `MaxBackoffSeconds`    | Max retry backoff while the peer is unreachable (default `60`) |
 | `MaxMessageSizeBytes`  | Max gRPC message size in bytes, i.e. the largest file that can sync (default `67108864`, 64 MiB) |
 | `TombstoneRetentionDays` | Days to keep a deletion tombstone for a path the peer has no record of; `0` (default) reclaims it immediately. Tombstones both sides agree on are always reclaimed immediately |
-| `IgnorePatterns`       | Glob patterns excluded from sync (default `[ ".git/", "node_modules/" ]`) |
+| `IgnorePatterns`       | Glob patterns excluded from sync (default `[ ".git/", "node_modules/" ]`; a configured list replaces them) |
 | `IgnoreCase`           | Case-insensitive path handling (default on Windows)      |
 
 Run two peers on the same host with different directories, ports, and peer ids
@@ -43,7 +43,11 @@ pointing at each other.
 
 ### Ignored paths
 
-`IgnorePatterns` uses globs matched against sync-relative paths:
+`IgnorePatterns` uses globs matched against sync-relative paths. A configured
+list replaces the built-in defaults; an empty list does not, because
+configuration cannot tell `[]` apart from an unset key, so the defaults stay in
+force. To exclude nothing at all, configure a single blank entry (`[ "" ]`),
+which matches nothing.
 
 | Pattern          | Matches                                                       |
 | ---------------- | ------------------------------------------------------------- |

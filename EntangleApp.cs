@@ -17,7 +17,7 @@ public static class EntangleApp
         builder.Services.AddSingleton(new IgnoreMatcher(
             options.SyncDirectory,
             options.DatabasePath,
-            options.IgnorePatterns,
+            options.EffectiveIgnorePatterns,
             options.IgnoreCase));
         builder.Services.AddGrpc(grpc =>
         {

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Entangle.Configuration;
 
 /// <summary>
@@ -60,10 +62,23 @@ public sealed class EntangleOptions
 
     /// <summary>
     /// Glob patterns, matched against sync-relative paths, whose matches are
-    /// excluded from sync. Setting this replaces the defaults. Ignoring a path
-    /// stops it syncing locally; it never deletes the peer's copy.
+    /// excluded from sync. Unset means <see cref="DefaultIgnorePatterns"/>; a
+    /// configured list replaces them entirely. An empty array is indistinguishable
+    /// from an unset key — configuration flattens it away — so the defaults apply
+    /// to it as well; a list of blank entries is what excludes nothing.
     /// </summary>
-    public List<string> IgnorePatterns { get; set; } = [".git/", "node_modules/"];
+    public List<string>? IgnorePatterns { get; set; }
+
+    /// <summary>Patterns in force when <see cref="IgnorePatterns"/> is unset.</summary>
+    public static IReadOnlyList<string> DefaultIgnorePatterns { get; } = [".git/", "node_modules/"];
+
+    /// <summary>
+    /// The patterns to apply: the configured ones, or the defaults when nothing is
+    /// configured. Kept out of configuration serialisation, which writes
+    /// <see cref="IgnorePatterns"/>.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> EffectiveIgnorePatterns => IgnorePatterns ?? DefaultIgnorePatterns;
 
     /// <summary>Returns configuration errors; empty when the options are valid.</summary>
     public IReadOnlyList<string> Validate()

@@ -36,7 +36,7 @@ public sealed class PutFileStoreTests : IDisposable
         };
 
         var store = new SqliteSyncStore(db);
-        var ignore = new IgnoreMatcher(_dir, db, options.IgnorePatterns, options.IgnoreCase);
+        var ignore = new IgnoreMatcher(_dir, db, options.EffectiveIgnorePatterns, options.IgnoreCase);
         return (new SyncServiceImpl(options, store, ignore, NullLogger<SyncServiceImpl>.Instance), store);
     }
 
