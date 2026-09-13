@@ -483,7 +483,7 @@ $RECYCLE.BIN/
 
 # Entangle local state: the database and its SQLite sidecars, plus the sync
 # directory the checked-in appsettings.json uses. Both are written by a run from
-# this checkout; configs generated on a first start keep state outside the working
-# directory instead.
+# this checkout; a generated config keeps them outside the working directory
+# instead, under the state root (~/.entangle).
 entangle.db*
 /entangled/

@@ -21,7 +21,11 @@ sudo pacman -S aspnet-targeting-pack aspnet-runtime
 ## Configuration
 
 Configuration is read from appsettings.json, environment variables
-(`Entangle__Key`), or CLI args (`--Entangle:Key`):
+(`Entangle__Key`), or CLI args (`--Entangle:Key`). The per-user file lives at
+`~/.entangle/appsettings.json` (`%LOCALAPPDATA%\entangle\appsettings.json` on
+Windows); an appsettings.json in the working directory is read as well and takes
+precedence over it, so a checkout or a portable install can carry its own
+configuration:
 
 | Key                    | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
@@ -45,14 +49,21 @@ tie-break cannot pick a winner, and the two copies would not converge.
 
 ### First start
 
-On first start in a working directory that has no appsettings.json, Entangle
-writes one: `./entangled` as the sync directory, a state database under the state
-root (`~/.entangle`, or `%LOCALAPPDATA%\entangle` on Windows), port `5000`, and a
-`PeerId` taken from the machine name (`peer-<hostname>`). Anything supplied by
-environment variables or CLI args is kept and recorded, so a start with
-`--Entangle:SyncDirectory=/data` writes `/data` into the file. The file is only
-ever written when it is absent and the options are valid, so a failed start
-leaves nothing behind.
+On first start, when neither the working directory nor the state root has an
+appsettings.json, Entangle writes one under the state root: `./entangled` as the
+sync directory, a state database under the state root (`~/.entangle`, or
+`%LOCALAPPDATA%\entangle` on Windows), port `5000`, and a `PeerId` taken from the
+machine name (`peer-<hostname>`). Anything supplied by environment variables or
+CLI args is kept and recorded, so a start with `--Entangle:SyncDirectory=/data`
+writes `/data` into the file. The file is only ever written when it is absent and
+the options are valid, so a failed start leaves nothing behind.
+
+Because the generated file is not in the working directory, starting Entangle
+from an arbitrary directory does not litter it. A working directory's own
+appsettings.json, when there is one, is the user's: it is never written to, and it
+overrides the per-user file. The configuration precedence, lowest first, is the
+per-user file, the working directory's appsettings.json, environment variables,
+then `run` options.
 
 The database is deliberately outside the synced tree, in a directory per synced
 tree named after the tree's directory plus a hash of its full path. Two peers on
@@ -64,8 +75,8 @@ yet propagated on both sides is forgotten. The old directory under the state roo
 is left behind and can be deleted.
 
 The peer address is the exception, because it cannot be guessed: the file gets
-the marker `"PeerAddress": "unset"` and the run stops there, printing where to
-set it and how. Nothing else is created — no sync directory, no database, no
+the marker `"PeerAddress": "unset"` and the run stops there, printing which file
+to edit and how. Nothing else is created — no sync directory, no database, no
 listening port — until an address is there:
 
 ```sh

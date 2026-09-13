@@ -28,14 +28,20 @@ switch (parsed.Command)
 
 var builder = WebApplication.CreateBuilder(parsed.Arguments.ToArray());
 
+// The per-user config file is the baseline, so a working directory's own
+// appsettings.json, the environment, and the command line all override it.
+FirstRunConfig.AddUserConfig(builder.Configuration);
+
 // Load configuration, failing fast on invalid values.
 var entangle = builder.Configuration.GetSection("Entangle").Get<EntangleOptions>() ?? new EntangleOptions();
 
-// First start in a working directory that has no configuration: the synced files
-// live in the working directory and the state database under the state root
-// (~/.entangle, %LOCALAPPDATA%\entangle on Windows), one directory per synced tree,
-// so the peer runs unattended. All other starts read the file as it is, however the
-// user has since edited it.
+// First start with no configuration anywhere: the synced files live in the working
+// directory and the state database and configuration under the state root
+// (~/.entangle, %LOCALAPPDATA%\entangle on Windows). The generated file lands
+// there rather than in the working directory, so a start from an arbitrary
+// directory leaves that directory alone; the state root holds one database
+// directory per synced tree. All other starts read the files as they are, however
+// the user has since edited them.
 if (FirstRunConfig.InitializeIfMissing(builder.Environment.ContentRootPath, entangle, out var configPath))
     Console.WriteLine($"Entangle: wrote default configuration to {configPath}");
 

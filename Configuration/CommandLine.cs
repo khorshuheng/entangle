@@ -72,8 +72,10 @@ public static class CommandLine
           entangle --help           show this text
           entangle --version        show the version
 
-        Configuration is read from appsettings.json in the working directory, from
-        environment variables (Entangle__Key), and from the options given to "run"
+        Configuration is read from appsettings.json — the per-user file under the
+        state directory (~/.entangle on Linux, %LOCALAPPDATA%\entangle on Windows),
+        overridden by one in the working directory — from environment variables
+        (Entangle__Key), and from the options given to "run"
         (--Entangle:Key=value), in that order of precedence.
 
           entangle run --Entangle:PeerAddress=http://otherhost:5000

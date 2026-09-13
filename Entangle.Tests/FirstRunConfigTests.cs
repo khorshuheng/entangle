@@ -5,8 +5,8 @@ using Microsoft.Extensions.Configuration;
 namespace Entangle.Tests;
 
 /// <summary>
-/// First-start configuration: the defaults a fresh working directory gets, the
-/// file written for it, and the promise that later starts leave that file alone.
+/// First-start configuration: the defaults a fresh install gets, the per-user file
+/// written under the state root, and the promise that later starts leave it alone.
 /// </summary>
 public sealed class FirstRunConfigTests : IDisposable
 {
@@ -25,12 +25,13 @@ public sealed class FirstRunConfigTests : IDisposable
         try { Directory.Delete(_stateRoot, recursive: true); } catch { }
     }
 
-    private string ConfigPath => Path.Combine(_dir, FirstRunConfig.FileName);
+    private string UserConfigPath => Path.Combine(_stateRoot, FirstRunConfig.FileName);
+    private string LocalConfigPath => Path.Combine(_dir, FirstRunConfig.FileName);
 
-    /// <summary>Binds the configuration file the way the application does.</summary>
+    /// <summary>Binds the generated per-user configuration file.</summary>
     private EntangleOptions BindFromFile() =>
         new ConfigurationBuilder()
-            .AddJsonFile(ConfigPath)
+            .AddJsonFile(UserConfigPath)
             .Build()
             .GetSection("Entangle")
             .Get<EntangleOptions>()!;
@@ -136,8 +137,8 @@ public sealed class FirstRunConfigTests : IDisposable
         var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out var path, _stateRoot);
 
         Assert.True(wrote);
-        Assert.Equal(ConfigPath, path);
-        Assert.True(File.Exists(ConfigPath));
+        Assert.Equal(UserConfigPath, path);
+        Assert.True(File.Exists(UserConfigPath));
     }
 
     [Fact]
@@ -146,7 +147,7 @@ public sealed class FirstRunConfigTests : IDisposable
         var options = new EntangleOptions();
         FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
-        using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
+        using var document = JsonDocument.Parse(File.ReadAllText(UserConfigPath));
         var keys = document.RootElement
             .GetProperty("Entangle")
             .EnumerateObject()
@@ -205,7 +206,7 @@ public sealed class FirstRunConfigTests : IDisposable
         var options = new EntangleOptions();
         FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
-        using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
+        using var document = JsonDocument.Parse(File.ReadAllText(UserConfigPath));
 
         Assert.Equal("Entangle", Assert.Single(document.RootElement.EnumerateObject()).Name);
 
@@ -225,21 +226,21 @@ public sealed class FirstRunConfigTests : IDisposable
     public void SecondStartLeavesTheFileAlone()
     {
         FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out _, _stateRoot);
-        var edited = File.ReadAllText(ConfigPath).Replace("\"Port\": 5000", "\"Port\": 5050");
-        File.WriteAllText(ConfigPath, edited);
+        var edited = File.ReadAllText(UserConfigPath).Replace("\"Port\": 5000", "\"Port\": 5050");
+        File.WriteAllText(UserConfigPath, edited);
 
         var wrote = FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out var path, _stateRoot);
 
         Assert.False(wrote);
-        Assert.Equal(ConfigPath, path);
-        Assert.Equal(edited, File.ReadAllText(ConfigPath));
+        Assert.Equal(UserConfigPath, path);
+        Assert.Equal(edited, File.ReadAllText(UserConfigPath));
         Assert.Equal(5050, BindFromFile().Port);
     }
 
     [Fact]
     public void MissingValuesInAnExistingFileAreNotFilledIn()
     {
-        File.WriteAllText(ConfigPath, """{ "Entangle": { "Port": 5000 } }""");
+        File.WriteAllText(UserConfigPath, """{ "Entangle": { "Port": 5000 } }""");
 
         var options = new EntangleOptions();
         var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
@@ -257,6 +258,60 @@ public sealed class FirstRunConfigTests : IDisposable
         var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
         Assert.False(wrote);
-        Assert.False(File.Exists(ConfigPath));
+        Assert.False(File.Exists(UserConfigPath));
+    }
+
+    [Fact]
+    public void AWorkingDirectoryFileIsNeverWrittenToOrOverwritten()
+    {
+        const string local = """{ "Entangle": { "Port": 5050 } }""";
+        File.WriteAllText(LocalConfigPath, local);
+
+        var wrote = FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out var path, _stateRoot);
+
+        // It takes precedence, so it is also the file a reminder should name.
+        Assert.False(wrote);
+        Assert.Equal(LocalConfigPath, path);
+        Assert.False(File.Exists(UserConfigPath));
+        Assert.Equal(local, File.ReadAllText(LocalConfigPath));
+    }
+
+    [Fact]
+    public void TheWorkingDirectoryFileOverridesThePerUserFile()
+    {
+        File.WriteAllText(UserConfigPath, """{ "Entangle": { "Port": 6000, "PeerAddress": "http://per-user:5000" } }""");
+        File.WriteAllText(LocalConfigPath, """{ "Entangle": { "Port": 7000 } }""");
+
+        var configuration = new ConfigurationManager();
+        configuration.AddJsonFile(LocalConfigPath, optional: true);
+        FirstRunConfig.AddUserConfig(configuration, _stateRoot);
+
+        var options = configuration.GetSection("Entangle").Get<EntangleOptions>()!;
+
+        Assert.Equal(7000, options.Port);
+        Assert.Equal("http://per-user:5000", options.PeerAddress);
+    }
+
+    [Fact]
+    public void ThePerUserFileIsTheLowestPrecedenceSource()
+    {
+        File.WriteAllText(UserConfigPath, """{ "Entangle": { "Port": 6000, "PeerId": "peer-file" } }""");
+
+        var configuration = new ConfigurationManager();
+        configuration.AddCommandLine(["--Entangle:PeerId=peer-cli"]);
+        FirstRunConfig.AddUserConfig(configuration, _stateRoot);
+
+        // The command line wins; the per-user file fills everything else.
+        Assert.Equal(6000, configuration.GetValue<int>("Entangle:Port"));
+        Assert.Equal("peer-cli", configuration["Entangle:PeerId"]);
+    }
+
+    [Fact]
+    public void NoPerUserFileIsAddedWhenThereIsNone()
+    {
+        var configuration = new ConfigurationManager();
+        FirstRunConfig.AddUserConfig(configuration, Path.Combine(_stateRoot, "absent"));
+
+        Assert.Null(configuration["Entangle:Port"]);
     }
 }

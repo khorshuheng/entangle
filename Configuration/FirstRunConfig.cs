@@ -1,13 +1,19 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
+using Microsoft.Extensions.FileProviders;
 
 namespace Entangle.Configuration;
 
 /// <summary>
-/// Writes the default appsettings.json for a working directory that has none, so
-/// a fresh install starts without hand-written configuration. An existing file is
-/// never modified: from the second start on, the file belongs to the user.
+/// Writes the default appsettings.json for an install that has none, so a fresh
+/// start needs no hand-written configuration. The generated file lives under the
+/// state root (<c>~/.entangle</c>), not in whatever directory the service happens
+/// to be run from, so starting it from anywhere leaves that directory alone. A
+/// working directory's own appsettings.json, when there is one, is the user's and
+/// takes precedence; nothing is written to it or over it.
 /// </summary>
 public static class FirstRunConfig
 {
@@ -70,12 +76,14 @@ public static class FirstRunConfig
     }
 
     /// <summary>
-    /// Creates the configuration file for a first start: <paramref name="options"/>
+    /// Creates the per-user configuration file for a first start: <paramref name="options"/>
     /// gains the defaults for whatever nothing else supplied, and the result is
-    /// written to <paramref name="contentRootPath"/> — but only when no file is
-    /// there yet, and only when the result is valid, so a start that fails
-    /// validation can never leave a broken file behind. Returns whether a file was
-    /// written, with its path in <paramref name="path"/>.
+    /// written under the state root — but only when neither the working directory
+    /// nor the state root has a file yet, and only when the result is valid, so a
+    /// start that fails validation can never leave a broken file behind.
+    /// <paramref name="path"/> is the file to edit for a missing value: the working
+    /// directory's own file when there is one, since it takes precedence, and the
+    /// per-user file otherwise. Returns whether a file was written.
     /// </summary>
     public static bool InitializeIfMissing(
         string contentRootPath,
@@ -83,16 +91,45 @@ public static class FirstRunConfig
         out string path,
         string? stateRoot = null)
     {
+        // A file in the working directory is the user's own and wins over the
+        // per-user file, so it is never generated, appended to, or overridden.
         path = Path.Combine(contentRootPath, FileName);
         if (File.Exists(path))
+            return false;
+
+        var userFile = Path.Combine(stateRoot ?? StateRoot, FileName);
+        path = userFile;
+        if (File.Exists(userFile))
             return false;
 
         ApplyDefaults(options, stateRoot);
         if (options.Validate().Count > 0)
             return false;
 
-        File.WriteAllText(path, Serialize(options));
+        Directory.CreateDirectory(Path.GetDirectoryName(userFile)!);
+        File.WriteAllText(userFile, Serialize(options));
         return true;
+    }
+
+    /// <summary>
+    /// Adds the per-user configuration file to <paramref name="configuration"/> as
+    /// its lowest-precedence source — below the working directory's own
+    /// appsettings.json, the environment, and the command line — so anything a
+    /// later source sets wins. Adds nothing when the file is absent, so a run that
+    /// keeps its configuration in the working directory never creates the state root.
+    /// </summary>
+    public static void AddUserConfig(IConfigurationBuilder configuration, string? stateRoot = null)
+    {
+        var root = stateRoot ?? StateRoot;
+        if (!File.Exists(Path.Combine(root, FileName)))
+            return;
+
+        configuration.Sources.Insert(0, new JsonConfigurationSource
+        {
+            FileProvider = new PhysicalFileProvider(root),
+            Path = FileName,
+            Optional = true,
+        });
     }
 
     /// <summary>Serialises the effective options as the "Entangle" section of a config file.</summary>
