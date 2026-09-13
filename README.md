@@ -25,11 +25,11 @@ Configuration is read from appsettings.json, environment variables
 
 | Key                    | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
-| `SyncDirectory`        | Local directory to keep in sync (required)               |
-| `DatabasePath`         | Path to the local SQLite state database (required)       |
+| `SyncDirectory`        | Local directory to keep in sync (required; first start uses `./entangled`) |
+| `DatabasePath`         | Path to the local SQLite state database (required; first start uses `./entangle.db`) |
 | `Port`                 | gRPC listen port (default `5000`)                        |
-| `PeerAddress`          | Address of the peer instance (required)                  |
-| `PeerId`               | Stable unique id, used for LWW tie-break (required)      |
+| `PeerAddress`          | Address of the peer instance (required; first start uses `http://localhost:5001`) |
+| `PeerId`               | Stable unique id, used for LWW tie-break (required; first start uses `peer-<hostname>`) |
 | `RescanIntervalSeconds`| Periodic full rescan interval (default `30`)             |
 | `SyncIntervalSeconds`  | Interval between reconcile passes (default `5`)          |
 | `MaxBackoffSeconds`    | Max retry backoff while the peer is unreachable (default `60`) |
@@ -39,7 +39,23 @@ Configuration is read from appsettings.json, environment variables
 | `IgnoreCase`           | Case-insensitive path handling (default on Windows)      |
 
 Run two peers on the same host with different directories, ports, and peer ids
-pointing at each other.
+pointing at each other. Both would generate the same `peer-<hostname>` id, so
+set `PeerId` explicitly in at least one of them: with equal ids the equal-mtime
+tie-break cannot pick a winner, and the two copies would not converge.
+
+### First start
+
+On first start in a working directory that has no appsettings.json, Entangle
+writes one: `./entangled` as the sync directory, `./entangle.db` as the state
+database, port `5000`, peer address `http://localhost:5001`, and a `PeerId`
+taken from the machine name (`peer-<hostname>`). Anything supplied by
+environment variables or CLI args is kept and recorded, so a start with
+`--Entangle:SyncDirectory=/data` writes `/data` into the file. The file is only
+ever written when it is absent and the options are valid, so a failed start
+leaves nothing behind.
+
+After that the file is yours: it is never rewritten. Edit it to change the
+setup, or override individual keys from the environment or the command line.
 
 ### Ignored paths
 

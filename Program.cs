@@ -3,8 +3,16 @@ using Entangle.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load and validate configuration, failing fast on invalid values.
+// Load configuration, failing fast on invalid values.
 var entangle = builder.Configuration.GetSection("Entangle").Get<EntangleOptions>() ?? new EntangleOptions();
+
+// First start in a working directory that has no configuration: the working
+// directory holds the synced files and the state database, so the peer runs
+// unattended. All other starts read the file as it is, however the user has since
+// edited it.
+if (FirstRunConfig.InitializeIfMissing(builder.Environment.ContentRootPath, entangle, out var configPath))
+    Console.WriteLine($"Entangle: wrote default configuration to {configPath}");
+
 var errors = entangle.Validate();
 if (errors.Count > 0)
 {
