@@ -189,6 +189,7 @@ public sealed class FirstRunConfigTests : IDisposable
         Assert.Equal(options.SyncDirectory, bound.SyncDirectory);
         Assert.Equal(options.DatabasePath, bound.DatabasePath);
         Assert.Equal(options.Port, bound.Port);
+        Assert.Equal(options.BindAddress, bound.BindAddress);
         Assert.Equal(options.PeerAddress, bound.PeerAddress);
         Assert.Equal(options.PeerId, bound.PeerId);
         Assert.Equal(options.RescanIntervalSeconds, bound.RescanIntervalSeconds);

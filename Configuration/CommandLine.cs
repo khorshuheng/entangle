@@ -83,5 +83,9 @@ public static class CommandLine
         Unless configured otherwise, the synced files live in ./entangled and the
         state database under the user's state directory (~/.entangle on Linux,
         %LOCALAPPDATA%\entangle on Windows), in a directory per synced tree.
+
+        The gRPC port listens on loopback only; set Entangle:BindAddress to "any"
+        (or an IP address) to reach it from another machine. The service has no
+        authentication, so only do that on a trusted network or over a tunnel.
         """;
 }

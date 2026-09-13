@@ -1,3 +1,4 @@
+using System.Net;
 using Entangle.Configuration;
 using Entangle.Storage;
 using Entangle.Sync;
@@ -34,7 +35,16 @@ public static class EntangleApp
 
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
-            kestrel.ListenAnyIP(options.Port, listen => listen.Protocols = HttpProtocols.Http2);
+            void Http2(ListenOptions listen) => listen.Protocols = HttpProtocols.Http2;
+
+            // Loopback by default: the API is unauthenticated, so being reachable
+            // from a network is an explicit choice through Entangle:BindAddress.
+            if (options.BindAddress.Equals(EntangleOptions.AnyBindAddress, StringComparison.OrdinalIgnoreCase))
+                kestrel.ListenAnyIP(options.Port, Http2);
+            else if (options.BindAddress.Equals(EntangleOptions.LoopbackBindAddress, StringComparison.OrdinalIgnoreCase))
+                kestrel.ListenLocalhost(options.Port, Http2);
+            else
+                kestrel.Listen(IPAddress.Parse(options.BindAddress), options.Port, Http2);
         });
 
         var app = builder.Build();

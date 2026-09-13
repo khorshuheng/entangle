@@ -81,6 +81,47 @@ public sealed class EntangleOptionsTests : IDisposable
         Assert.False(Bind("""{ "IgnoreCase": false }""").IgnoreCase);
     }
 
+    [Fact]
+    public void LoopbackIsTheDefaultBindAddress()
+    {
+        var options = Bind("""{ "Port": 5000 }""");
+
+        Assert.Equal(EntangleOptions.LoopbackBindAddress, options.BindAddress);
+
+        FirstRunConfig.ApplyDefaults(options);
+        Assert.Empty(options.Validate());
+    }
+
+    [Theory]
+    [InlineData("loopback")]
+    [InlineData("LOOPBACK")]
+    [InlineData("any")]
+    [InlineData("127.0.0.1")]
+    [InlineData("0.0.0.0")]
+    [InlineData("192.168.1.10")]
+    [InlineData("::1")]
+    public void AKnownBindAddressPassesValidation(string address)
+    {
+        var options = new EntangleOptions { BindAddress = address };
+        FirstRunConfig.ApplyDefaults(options);
+
+        Assert.Empty(options.Validate());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("localhost")]
+    [InlineData("0.0.0.0:5000")]
+    [InlineData("everywhere")]
+    public void AnUnknownBindAddressIsRejected(string address)
+    {
+        var options = new EntangleOptions { BindAddress = address };
+        FirstRunConfig.ApplyDefaults(options);
+
+        Assert.Contains(options.Validate(), error => error.Contains("BindAddress"));
+    }
+
     [Theory]
     [InlineData("http://otherhost:5000")]
     [InlineData("http://localhost:5001")]

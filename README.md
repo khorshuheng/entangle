@@ -32,6 +32,7 @@ configuration:
 | `SyncDirectory`        | Local directory to keep in sync (required; first start uses `./entangled`) |
 | `DatabasePath`         | Path to the local SQLite state database (required; first start uses a per-tree directory under the state root, `~/.entangle/<name>-<hash>/entangle.db`, or `%LOCALAPPDATA%\entangle\…` on Windows) |
 | `Port`                 | gRPC listen port (default `5000`)                        |
+| `BindAddress`          | Address to listen on: `loopback` (default; `127.0.0.1` and `[::1]`), `any` (every interface), or a literal IP address |
 | `PeerAddress`          | Address of the peer instance, as an absolute http(s) URL (required; first start writes the marker `unset`, which stops the run with a reminder) |
 | `PeerId`               | Stable unique id, used for LWW tie-break (required; first start uses `peer-<hostname>`) |
 | `RescanIntervalSeconds`| Periodic full rescan interval (default `30`)             |
@@ -41,6 +42,13 @@ configuration:
 | `TombstoneRetentionDays` | Days to keep a deletion tombstone for a path the peer has no record of; `0` (default) reclaims it immediately. Tombstones both sides agree on are always reclaimed immediately |
 | `IgnorePatterns`       | Glob patterns excluded from sync (default `[ ".git/", "node_modules/" ]`; a configured list replaces them) |
 | `IgnoreCase`           | Case-insensitive path handling (default on Windows)      |
+
+The service has no authentication or transport encryption, so by default it
+listens on loopback only. Syncing between two machines means setting
+`BindAddress` to `any` (or the address of the interface facing the peer), which
+exposes the API to everything that can reach that address and port. Do that only
+on a network you trust, or — better — reach the peer over a tunnel or VPN (for
+example Tailscale or an SSH port forward) and leave the listener on loopback.
 
 Run two peers on the same host with different directories, ports, and peer ids
 pointing at each other. Both would generate the same `peer-<hostname>` id, so
@@ -159,7 +167,8 @@ entangle run --Entangle:Port=5001 --Entangle:PeerAddress=http://otherhost:5000
 Exit codes: `0` success (help and version included), `1` configuration problem,
 `2` usage error.
 
-The service listens on the configured port using plaintext HTTP/2 gRPC.
+The service listens on the configured port using plaintext HTTP/2 gRPC, on
+loopback unless `BindAddress` says otherwise (see above).
 
 ## Test
 

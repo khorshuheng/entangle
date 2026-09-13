@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json.Serialization;
 
 namespace Entangle.Configuration;
@@ -17,6 +18,21 @@ public sealed class EntangleOptions
 
     /// <summary>Port the gRPC server listens on.</summary>
     public int Port { get; set; } = 5000;
+
+    /// <summary>
+    /// Address the gRPC server listens on: <see cref="LoopbackBindAddress"/> (the
+    /// default — 127.0.0.1 and [::1] only), <see cref="AnyBindAddress"/> (every
+    /// interface), or a literal IP address (one interface). The service has no
+    /// authentication, so reaching it over a network is opt-in rather than the
+    /// default. See <see cref="IsValidBindAddress"/>.
+    /// </summary>
+    public string BindAddress { get; set; } = LoopbackBindAddress;
+
+    /// <summary>Value of <see cref="BindAddress"/> that binds loopback only.</summary>
+    public const string LoopbackBindAddress = "loopback";
+
+    /// <summary>Value of <see cref="BindAddress"/> that binds every interface.</summary>
+    public const string AnyBindAddress = "any";
 
     /// <summary>
     /// Address of the peer instance to sync with, as an absolute http(s) URI
@@ -56,6 +72,23 @@ public sealed class EntangleOptions
     public static bool IsDialablePeerAddress(string? peerAddress) =>
         Uri.TryCreate(peerAddress, UriKind.Absolute, out var uri)
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    /// <summary>
+    /// True for a bind address this build knows how to use: the "loopback" or
+    /// "any" keyword, or a literal IP address (which may name one interface). A
+    /// bare host name is rejected: it could resolve to more than one address, so
+    /// it does not say what to bind.
+    /// </summary>
+    public static bool IsValidBindAddress(string? bindAddress)
+    {
+        if (string.IsNullOrWhiteSpace(bindAddress))
+            return false;
+
+        var trimmed = bindAddress.Trim();
+        return trimmed.Equals(LoopbackBindAddress, StringComparison.OrdinalIgnoreCase)
+            || trimmed.Equals(AnyBindAddress, StringComparison.OrdinalIgnoreCase)
+            || IPAddress.TryParse(trimmed, out _);
+    }
 
     /// <summary>Stable unique id for this peer; used for LWW tie-break (required).</summary>
     public string PeerId { get; set; } = "";
@@ -133,6 +166,10 @@ public sealed class EntangleOptions
             errors.Add("Entangle:PeerId must be set.");
         if (Port is < 1 or > 65535)
             errors.Add($"Entangle:Port must be between 1 and 65535 (got {Port}).");
+        if (!IsValidBindAddress(BindAddress))
+            errors.Add(
+                $"Entangle:BindAddress must be \"{LoopbackBindAddress}\", \"{AnyBindAddress}\", "
+                + $"or an IP address (got '{BindAddress}').");
         if (RescanIntervalSeconds <= 0)
             errors.Add($"Entangle:RescanIntervalSeconds must be positive (got {RescanIntervalSeconds}).");
         if (SyncIntervalSeconds <= 0)
