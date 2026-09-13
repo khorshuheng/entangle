@@ -26,7 +26,7 @@ Configuration is read from appsettings.json, environment variables
 | Key                    | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | `SyncDirectory`        | Local directory to keep in sync (required; first start uses `./entangled`) |
-| `DatabasePath`         | Path to the local SQLite state database (required; first start uses `./entangle.db`) |
+| `DatabasePath`         | Path to the local SQLite state database (required; first start uses a per-tree directory under the state root, `~/.entangle/<name>-<hash>/entangle.db`, or `%LOCALAPPDATA%\entangle\…` on Windows) |
 | `Port`                 | gRPC listen port (default `5000`)                        |
 | `PeerAddress`          | Address of the peer instance, as an absolute http(s) URL (required; first start writes the marker `unset`, which stops the run with a reminder) |
 | `PeerId`               | Stable unique id, used for LWW tie-break (required; first start uses `peer-<hostname>`) |
@@ -46,12 +46,22 @@ tie-break cannot pick a winner, and the two copies would not converge.
 ### First start
 
 On first start in a working directory that has no appsettings.json, Entangle
-writes one: `./entangled` as the sync directory, `./entangle.db` as the state
-database, port `5000`, and a `PeerId` taken from the machine name
-(`peer-<hostname>`). Anything supplied by environment variables or CLI args is
-kept and recorded, so a start with `--Entangle:SyncDirectory=/data` writes
-`/data` into the file. The file is only ever written when it is absent and the
-options are valid, so a failed start leaves nothing behind.
+writes one: `./entangled` as the sync directory, a state database under the state
+root (`~/.entangle`, or `%LOCALAPPDATA%\entangle` on Windows), port `5000`, and a
+`PeerId` taken from the machine name (`peer-<hostname>`). Anything supplied by
+environment variables or CLI args is kept and recorded, so a start with
+`--Entangle:SyncDirectory=/data` writes `/data` into the file. The file is only
+ever written when it is absent and the options are valid, so a failed start
+leaves nothing behind.
+
+The database is deliberately outside the synced tree, in a directory per synced
+tree named after the tree's directory plus a hash of its full path. Two peers on
+one host therefore keep separate state without any extra configuration, and
+SQLite never runs on a mounted filesystem, where its locking cannot be relied on.
+That name is derived from the sync directory, so moving or renaming that
+directory starts a new state directory: the peer re-scans, and any deletion not
+yet propagated on both sides is forgotten. The old directory under the state root
+is left behind and can be deleted.
 
 The peer address is the exception, because it cannot be guessed: the file gets
 the marker `"PeerAddress": "unset"` and the run stops there, printing where to

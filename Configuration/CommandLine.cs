@@ -78,7 +78,8 @@ public static class CommandLine
 
           entangle run --Entangle:PeerAddress=http://otherhost:5000
 
-        Unless configured otherwise, the working directory holds the synced files
-        (./entangled) and the state database (./entangle.db).
+        Unless configured otherwise, the synced files live in ./entangled and the
+        state database under the user's state directory (~/.entangle on Linux,
+        %LOCALAPPDATA%\entangle on Windows), in a directory per synced tree.
         """;
 }

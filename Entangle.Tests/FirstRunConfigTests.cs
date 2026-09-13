@@ -11,12 +11,18 @@ namespace Entangle.Tests;
 public sealed class FirstRunConfigTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "entangle-first-run-" + Guid.NewGuid().ToString("N"));
+    private readonly string _stateRoot = Path.Combine(Path.GetTempPath(), "entangle-state-" + Guid.NewGuid().ToString("N"));
 
-    public FirstRunConfigTests() => Directory.CreateDirectory(_dir);
+    public FirstRunConfigTests()
+    {
+        Directory.CreateDirectory(_dir);
+        Directory.CreateDirectory(_stateRoot);
+    }
 
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { }
+        try { Directory.Delete(_stateRoot, recursive: true); } catch { }
     }
 
     private string ConfigPath => Path.Combine(_dir, FirstRunConfig.FileName);
@@ -34,16 +40,63 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions();
 
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, _stateRoot);
 
         Assert.Empty(options.Validate());
         Assert.Equal(FirstRunConfig.DefaultSyncDirectory, options.SyncDirectory);
-        Assert.Equal(FirstRunConfig.DefaultDatabasePath, options.DatabasePath);
+
+        // State lives outside the working directory, in a directory per synced tree.
+        Assert.StartsWith(_stateRoot + Path.DirectorySeparatorChar, options.DatabasePath);
+        Assert.EndsWith(FirstRunConfig.DatabaseFileName, options.DatabasePath);
+        Assert.False(options.DatabasePath.StartsWith(_dir, StringComparison.Ordinal));
 
         // The peer is deliberately left unchosen: no address can be guessed, so the
         // run stops with a reminder instead.
         Assert.Equal(EntangleOptions.UnsetPeerAddress, options.PeerAddress);
         Assert.False(options.PeerIsConfigured);
+    }
+
+    [Fact]
+    public void EachSyncedTreeGetsItsOwnStateDirectory()
+    {
+        // Same directory name, two places — and the same-host case, two names.
+        var first = Path.Combine(_dir, "one", "sync");
+        var sameBasenameElsewhere = Path.Combine(_dir, "two", "sync");
+        var secondInstance = Path.Combine(_dir, "one", "sync-b");
+
+        var paths = new[] { first, sameBasenameElsewhere, secondInstance }
+            .Select(tree => FirstRunConfig.DefaultDatabasePath(tree, _stateRoot))
+            .ToList();
+
+        Assert.Equal(3, paths.Distinct().Count());
+    }
+
+    [Fact]
+    public void TheStatePathForATreeIsStable()
+    {
+        var tree = Path.Combine(_dir, "sync");
+
+        Assert.Equal(
+            FirstRunConfig.DefaultDatabasePath(tree, _stateRoot),
+            FirstRunConfig.DefaultDatabasePath(tree, _stateRoot));
+
+        // Trailing separators name the same tree.
+        Assert.Equal(
+            FirstRunConfig.DefaultDatabasePath(tree, _stateRoot),
+            FirstRunConfig.DefaultDatabasePath(tree + Path.DirectorySeparatorChar, _stateRoot));
+    }
+
+    [Theory]
+    [InlineData("My Sync Dir", "my-sync-dir")]
+    [InlineData("sync", "sync")]
+    [InlineData("***", "sync")]
+    [InlineData(".hidden", "hidden")]
+    public void TheInstanceStateNameStaysReadableAndSafe(string directoryName, string expectedSlug)
+    {
+        var instance = FirstRunConfig.InstanceName(Path.Combine(_dir, directoryName));
+
+        Assert.StartsWith(expectedSlug + "-", instance);
+        Assert.Equal(expectedSlug.Length + 9, instance.Length); // slug, dash, 8 hex digits
     }
 
     [Fact]
@@ -57,7 +110,7 @@ public sealed class FirstRunConfigTests : IDisposable
             PeerId = "peer-explicit",
         };
 
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, _stateRoot);
 
         Assert.Equal("/data/sync", options.SyncDirectory);
         Assert.Equal("/data/state.db", options.DatabasePath);
@@ -70,7 +123,7 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions();
 
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, _stateRoot);
 
         Assert.Equal("peer-" + Environment.MachineName.Trim().ToLowerInvariant(), options.PeerId);
     }
@@ -80,7 +133,7 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions();
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out var path);
+        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out var path, _stateRoot);
 
         Assert.True(wrote);
         Assert.Equal(ConfigPath, path);
@@ -91,7 +144,7 @@ public sealed class FirstRunConfigTests : IDisposable
     public void WrittenFileCarriesNoDerivedKeys()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _);
+        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
         using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
         var keys = document.RootElement
@@ -110,10 +163,25 @@ public sealed class FirstRunConfigTests : IDisposable
     }
 
     [Fact]
+    public void WrittenFileRecordsTheStatePathAbsolutely()
+    {
+        var options = new EntangleOptions();
+        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+
+        var path = BindFromFile().DatabasePath;
+
+        // An absolute path, so the run is independent of the working directory, and
+        // no "~" for anything to have to expand.
+        Assert.True(Path.IsPathRooted(path));
+        Assert.StartsWith(_stateRoot, path);
+        Assert.DoesNotContain("~", path);
+    }
+
+    [Fact]
     public void WrittenFileBindsBackToTheSameOptions()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _);
+        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
         var bound = BindFromFile();
 
@@ -135,7 +203,7 @@ public sealed class FirstRunConfigTests : IDisposable
     public void WrittenFileCarriesTheIgnorePatternsOnce()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _);
+        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
         using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
 
@@ -156,11 +224,11 @@ public sealed class FirstRunConfigTests : IDisposable
     [Fact]
     public void SecondStartLeavesTheFileAlone()
     {
-        FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out _);
+        FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out _, _stateRoot);
         var edited = File.ReadAllText(ConfigPath).Replace("\"Port\": 5000", "\"Port\": 5050");
         File.WriteAllText(ConfigPath, edited);
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out var path);
+        var wrote = FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out var path, _stateRoot);
 
         Assert.False(wrote);
         Assert.Equal(ConfigPath, path);
@@ -174,7 +242,7 @@ public sealed class FirstRunConfigTests : IDisposable
         File.WriteAllText(ConfigPath, """{ "Entangle": { "Port": 5000 } }""");
 
         var options = new EntangleOptions();
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _);
+        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
         Assert.False(wrote);
         Assert.Equal("", options.SyncDirectory);
@@ -186,7 +254,7 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions { Port = 0 };
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _);
+        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
 
         Assert.False(wrote);
         Assert.False(File.Exists(ConfigPath));

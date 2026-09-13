@@ -31,10 +31,11 @@ var builder = WebApplication.CreateBuilder(parsed.Arguments.ToArray());
 // Load configuration, failing fast on invalid values.
 var entangle = builder.Configuration.GetSection("Entangle").Get<EntangleOptions>() ?? new EntangleOptions();
 
-// First start in a working directory that has no configuration: the working
-// directory holds the synced files and the state database, so the peer runs
-// unattended. All other starts read the file as it is, however the user has since
-// edited it.
+// First start in a working directory that has no configuration: the synced files
+// live in the working directory and the state database under the state root
+// (~/.entangle, %LOCALAPPDATA%\entangle on Windows), one directory per synced tree,
+// so the peer runs unattended. All other starts read the file as it is, however the
+// user has since edited it.
 if (FirstRunConfig.InitializeIfMissing(builder.Environment.ContentRootPath, entangle, out var configPath))
     Console.WriteLine($"Entangle: wrote default configuration to {configPath}");
 
@@ -65,6 +66,25 @@ if (!entangle.PeerIsConfigured)
 // (scanner, watcher, store) operates on the same absolute paths.
 entangle.SyncDirectory = Path.GetFullPath(entangle.SyncDirectory);
 entangle.DatabasePath = Path.GetFullPath(entangle.DatabasePath);
+
+// The state database lives outside the synced tree by default, so its directory
+// has to exist before SQLite opens it: a missing one surfaces as an unhandled
+// SqliteException rather than as a configuration error. It is created before the
+// sync directory so that a failure here — a read-only home, most likely — cannot
+// leave an empty directory behind in the user's synced data.
+var databaseDirectory = Path.GetDirectoryName(entangle.DatabasePath);
+try
+{
+    if (!string.IsNullOrEmpty(databaseDirectory))
+        Directory.CreateDirectory(databaseDirectory);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine(
+        $"Entangle configuration error: Entangle:DatabasePath '{entangle.DatabasePath}' is not usable: {ex.Message}");
+
+    return 1;
+}
 
 // The sync directory must be usable before we start watching it.
 try
