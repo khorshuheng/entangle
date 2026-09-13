@@ -111,8 +111,23 @@ dotnet build
 ## Run
 
 ```sh
-dotnet run
+entangle run         # installed binary
+dotnet run -- run    # from source
 ```
+
+Starting is explicit: a bare `entangle`, `entangle --help`, and
+`entangle --version` print usage or the version and exit without writing
+configuration, creating a sync directory or database, or binding a port.
+
+Options to `run` are configuration, and take precedence over appsettings.json
+and the environment:
+
+```sh
+entangle run --Entangle:Port=5001 --Entangle:PeerAddress=http://otherhost:5000
+```
+
+Exit codes: `0` success (help and version included), `1` configuration problem,
+`2` usage error.
 
 The service listens on the configured port using plaintext HTTP/2 gRPC.
 

@@ -1,7 +1,32 @@
 using Entangle;
 using Entangle.Configuration;
 
-var builder = WebApplication.CreateBuilder(args);
+// Answer help and version first, before a builder or any file exists: asking a
+// question must never start a service or leave anything behind.
+var parsed = CommandLine.Parse(args);
+switch (parsed.Command)
+{
+    case Command.Run:
+        break;
+
+    case Command.Help:
+        Console.WriteLine(CommandLine.Usage);
+        return 0;
+
+    case Command.Version:
+        Console.WriteLine(CommandLine.Version);
+        return 0;
+
+    case Command.UsageError:
+        foreach (var argument in parsed.Arguments)
+            Console.Error.WriteLine($"entangle: unrecognised argument '{argument}'");
+
+        Console.Error.WriteLine();
+        Console.Error.WriteLine(CommandLine.Usage);
+        return 2;
+}
+
+var builder = WebApplication.CreateBuilder(parsed.Arguments.ToArray());
 
 // Load configuration, failing fast on invalid values.
 var entangle = builder.Configuration.GetSection("Entangle").Get<EntangleOptions>() ?? new EntangleOptions();
@@ -19,7 +44,7 @@ if (errors.Count > 0)
     foreach (var error in errors)
         Console.Error.WriteLine($"Entangle configuration error: {error}");
 
-    throw new InvalidOperationException("Invalid Entangle configuration: " + string.Join("; ", errors));
+    return 1;
 }
 
 // Resolve relative paths once, against the content root, so every consumer
@@ -34,8 +59,11 @@ try
 }
 catch (Exception ex)
 {
-    throw new InvalidOperationException(
-        $"Entangle:SyncDirectory '{entangle.SyncDirectory}' is not usable: {ex.Message}", ex);
+    Console.Error.WriteLine(
+        $"Entangle configuration error: Entangle:SyncDirectory '{entangle.SyncDirectory}' is not usable: {ex.Message}");
+
+    return 1;
 }
 
 EntangleApp.Build(entangle).Run();
+return 0;
