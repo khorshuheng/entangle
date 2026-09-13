@@ -20,17 +20,18 @@ sudo pacman -S aspnet-targeting-pack aspnet-runtime
 
 ## Configuration
 
-Configuration is read from appsettings.json, environment variables
-(`Entangle__Key`), or CLI args (`--Entangle:Key`). The per-user file lives at
-`~/.entangle/appsettings.json` (`%LOCALAPPDATA%\entangle\appsettings.json` on
-Windows); an appsettings.json in the working directory is read as well and takes
-precedence over it, so a checkout or a portable install can carry its own
-configuration:
+Configuration is read from `appsettings.json` in the state directory,
+environment variables (`Entangle__Key`), and CLI args (`--Entangle:Key`), in that
+order of precedence. The state directory is `~/.entangle` on Linux and
+`%LOCALAPPDATA%\entangle` on Windows, and holds both the configuration and the
+SQLite database; `--state-dir <dir>` or `ENTANGLE_STATE_DIR` chooses another one.
+The working directory is never read for configuration, so a peer behaves the same
+wherever it is started:
 
 | Key                    | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | `SyncDirectory`        | Local directory to keep in sync (required; first start uses `./entangled`) |
-| `DatabasePath`         | Path to the local SQLite state database (required; first start uses a per-tree directory under the state root, `~/.entangle/<name>-<hash>/entangle.db`, or `%LOCALAPPDATA%\entangle\…` on Windows) |
+| `DatabasePath`         | Path to the local SQLite state database (optional; defaults to `entangle.db` in the state directory, next to `appsettings.json`) |
 | `Port`                 | gRPC listen port (default `5000`)                        |
 | `BindAddress`          | Address to listen on: `loopback` (default; `127.0.0.1` and `[::1]`), `any` (every interface), or a literal IP address |
 | `PeerAddress`          | Address of the peer instance, as an absolute http(s) URL (required; first start writes the marker `unset`, which stops the run with a reminder) |
@@ -50,37 +51,41 @@ exposes the API to everything that can reach that address and port. Do that only
 on a network you trust, or — better — reach the peer over a tunnel or VPN (for
 example Tailscale or an SSH port forward) and leave the listener on loopback.
 
-Run two peers on the same host with different directories, ports, and peer ids
-pointing at each other. Both would generate the same `peer-<hostname>` id, so
-set `PeerId` explicitly in at least one of them: with equal ids the equal-mtime
-tie-break cannot pick a winner, and the two copies would not converge.
+Run two peers by giving each its own state directory — and so its own
+configuration, database, and port — with the two pointing at each other:
+
+```sh
+entangle run --state-dir ~/.entangle/peer-a --Entangle:Port=5000 --Entangle:PeerId=peer-a \
+  --Entangle:PeerAddress=http://localhost:5001
+entangle run --state-dir ~/.entangle/peer-b --Entangle:Port=5001 --Entangle:PeerId=peer-b \
+  --Entangle:PeerAddress=http://localhost:5000
+```
+
+Both would otherwise generate the same `peer-<hostname>` id, so set `PeerId`
+explicitly in at least one: with equal ids the equal-mtime tie-break cannot pick a
+winner, and the two copies would not converge.
 
 ### First start
 
-On first start, when neither the working directory nor the state root has an
-appsettings.json, Entangle writes one under the state root: `./entangled` as the
-sync directory, a state database under the state root (`~/.entangle`, or
-`%LOCALAPPDATA%\entangle` on Windows), port `5000`, and a `PeerId` taken from the
+On first start, when the state directory has no appsettings.json, Entangle writes
+one there: `./entangled` as the sync directory, `entangle.db` beside the
+configuration as the state database, port `5000`, and a `PeerId` taken from the
 machine name (`peer-<hostname>`). Anything supplied by environment variables or
 CLI args is kept and recorded, so a start with `--Entangle:SyncDirectory=/data`
 writes `/data` into the file. The file is only ever written when it is absent and
 the options are valid, so a failed start leaves nothing behind.
 
-Because the generated file is not in the working directory, starting Entangle
-from an arbitrary directory does not litter it. A working directory's own
-appsettings.json, when there is one, is the user's: it is never written to, and it
-overrides the per-user file. The configuration precedence, lowest first, is the
-per-user file, the working directory's appsettings.json, environment variables,
-then `run` options.
+Nothing is created in the working directory. The configuration and the database
+live together in the state directory, so a peer's setup and its state move as a
+unit, and the database stays out of the synced tree — which also keeps SQLite off
+a mounted filesystem, where its locking cannot be relied on.
 
-The database is deliberately outside the synced tree, in a directory per synced
-tree named after the tree's directory plus a hash of its full path. Two peers on
-one host therefore keep separate state without any extra configuration, and
-SQLite never runs on a mounted filesystem, where its locking cannot be relied on.
-That name is derived from the sync directory, so moving or renaming that
-directory starts a new state directory: the peer re-scans, and any deletion not
-yet propagated on both sides is forgotten. The old directory under the state root
-is left behind and can be deleted.
+A peer's database describes the tree it was last synced with, so repointing a
+peer at a different tree is not just a configuration edit. Changing
+`SyncDirectory`, or running from a different working directory while it is the
+relative default, reuses the old records: the peer sees the previous tree's paths
+as deletions and propagates them. Give each tree its own state directory
+(`--state-dir`), or delete `entangle.db` when repointing a peer.
 
 The peer address is the exception, because it cannot be guessed: the file gets
 the marker `"PeerAddress": "unset"` and the run stops there, printing which file
@@ -135,8 +140,9 @@ build.cmd     # windows: publish\win-x64\entangle.exe
 ```
 
 Both publish a single framework-dependent binary (managed assemblies and the
-native SQLite library bundled in) plus the appsettings.json next to it, and both
-accept `test`, `clean`, and an explicit runtime identifier (`make RID=linux-arm64`,
+native SQLite library bundled in). No appsettings.json ships with it: the binary
+reads its configuration from the state directory, which a first start creates.
+Both accept `test`, `clean`, and an explicit runtime identifier (`make RID=linux-arm64`,
 `build.cmd win-arm64`). Framework-dependent means the machine that runs the
 result needs the ASP.NET Core 10 runtime, not just the .NET runtime.
 
@@ -157,12 +163,15 @@ Starting is explicit: a bare `entangle`, `entangle --help`, and
 `entangle --version` print usage or the version and exit without writing
 configuration, creating a sync directory or database, or binding a port.
 
-Options to `run` are configuration, and take precedence over appsettings.json
-and the environment:
+Options to `run` are configuration, and take precedence over the state
+directory's appsettings.json and the environment:
 
 ```sh
 entangle run --Entangle:Port=5001 --Entangle:PeerAddress=http://otherhost:5000
 ```
+
+`--state-dir <dir>` (or `ENTANGLE_STATE_DIR`) selects a different state directory,
+which is how a second peer runs on the same host:
 
 Exit codes: `0` success (help and version included), `1` configuration problem,
 `2` usage error.

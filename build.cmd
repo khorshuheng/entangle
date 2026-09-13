@@ -36,7 +36,7 @@ dotnet publish "%PROJECT%" -c Release -r "%RID%" --self-contained false ^
     -p:IncludeNativeLibrariesForSelfExtract=true ^
     -o "%OUT%"
 if errorlevel 1 exit /b 1
-del /q "%OUT%\*.pdb" "%OUT%\*.staticwebassets.endpoints.json" "%OUT%\appsettings.Development.json" 2>nul
+del /q "%OUT%\*.pdb" "%OUT%\*.staticwebassets.endpoints.json" 2>nul
 echo.
 echo built %OUT%\entangle.exe
 exit /b 0

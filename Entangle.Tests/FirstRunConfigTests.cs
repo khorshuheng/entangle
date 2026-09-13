@@ -5,33 +5,26 @@ using Microsoft.Extensions.Configuration;
 namespace Entangle.Tests;
 
 /// <summary>
-/// First-start configuration: the defaults a fresh install gets, the per-user file
-/// written under the state root, and the promise that later starts leave it alone.
+/// First-start configuration: the defaults a fresh state directory gets, the file
+/// written there, and the promise that later starts leave it alone.
 /// </summary>
 public sealed class FirstRunConfigTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "entangle-first-run-" + Guid.NewGuid().ToString("N"));
-    private readonly string _stateRoot = Path.Combine(Path.GetTempPath(), "entangle-state-" + Guid.NewGuid().ToString("N"));
+    private readonly string _stateDir = Path.Combine(Path.GetTempPath(), "entangle-state-" + Guid.NewGuid().ToString("N"));
 
-    public FirstRunConfigTests()
-    {
-        Directory.CreateDirectory(_dir);
-        Directory.CreateDirectory(_stateRoot);
-    }
+    public FirstRunConfigTests() => Directory.CreateDirectory(_stateDir);
 
     public void Dispose()
     {
-        try { Directory.Delete(_dir, recursive: true); } catch { }
-        try { Directory.Delete(_stateRoot, recursive: true); } catch { }
+        try { Directory.Delete(_stateDir, recursive: true); } catch { }
     }
 
-    private string UserConfigPath => Path.Combine(_stateRoot, FirstRunConfig.FileName);
-    private string LocalConfigPath => Path.Combine(_dir, FirstRunConfig.FileName);
+    private string ConfigPath => FirstRunConfig.ConfigPath(_stateDir);
 
-    /// <summary>Binds the generated per-user configuration file.</summary>
+    /// <summary>Binds the generated configuration file.</summary>
     private EntangleOptions BindFromFile() =>
         new ConfigurationBuilder()
-            .AddJsonFile(UserConfigPath)
+            .AddJsonFile(ConfigPath)
             .Build()
             .GetSection("Entangle")
             .Get<EntangleOptions>()!;
@@ -41,63 +34,20 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions();
 
-        FirstRunConfig.ApplyDefaults(options, _stateRoot);
+        FirstRunConfig.ApplyDefaults(options, _stateDir);
 
         Assert.Empty(options.Validate());
         Assert.Equal(FirstRunConfig.DefaultSyncDirectory, options.SyncDirectory);
 
-        // State lives outside the working directory, in a directory per synced tree.
-        Assert.StartsWith(_stateRoot + Path.DirectorySeparatorChar, options.DatabasePath);
-        Assert.EndsWith(FirstRunConfig.DatabaseFileName, options.DatabasePath);
-        Assert.False(options.DatabasePath.StartsWith(_dir, StringComparison.Ordinal));
+        // The database is collocated with the configuration file, in the state
+        // directory, so configuration and state move together.
+        Assert.Equal(FirstRunConfig.DefaultDatabasePath(_stateDir), options.DatabasePath);
+        Assert.Equal(Path.Combine(_stateDir, FirstRunConfig.DatabaseFileName), options.DatabasePath);
 
         // The peer is deliberately left unchosen: no address can be guessed, so the
         // run stops with a reminder instead.
         Assert.Equal(EntangleOptions.UnsetPeerAddress, options.PeerAddress);
         Assert.False(options.PeerIsConfigured);
-    }
-
-    [Fact]
-    public void EachSyncedTreeGetsItsOwnStateDirectory()
-    {
-        // Same directory name, two places — and the same-host case, two names.
-        var first = Path.Combine(_dir, "one", "sync");
-        var sameBasenameElsewhere = Path.Combine(_dir, "two", "sync");
-        var secondInstance = Path.Combine(_dir, "one", "sync-b");
-
-        var paths = new[] { first, sameBasenameElsewhere, secondInstance }
-            .Select(tree => FirstRunConfig.DefaultDatabasePath(tree, _stateRoot))
-            .ToList();
-
-        Assert.Equal(3, paths.Distinct().Count());
-    }
-
-    [Fact]
-    public void TheStatePathForATreeIsStable()
-    {
-        var tree = Path.Combine(_dir, "sync");
-
-        Assert.Equal(
-            FirstRunConfig.DefaultDatabasePath(tree, _stateRoot),
-            FirstRunConfig.DefaultDatabasePath(tree, _stateRoot));
-
-        // Trailing separators name the same tree.
-        Assert.Equal(
-            FirstRunConfig.DefaultDatabasePath(tree, _stateRoot),
-            FirstRunConfig.DefaultDatabasePath(tree + Path.DirectorySeparatorChar, _stateRoot));
-    }
-
-    [Theory]
-    [InlineData("My Sync Dir", "my-sync-dir")]
-    [InlineData("sync", "sync")]
-    [InlineData("***", "sync")]
-    [InlineData(".hidden", "hidden")]
-    public void TheInstanceStateNameStaysReadableAndSafe(string directoryName, string expectedSlug)
-    {
-        var instance = FirstRunConfig.InstanceName(Path.Combine(_dir, directoryName));
-
-        Assert.StartsWith(expectedSlug + "-", instance);
-        Assert.Equal(expectedSlug.Length + 9, instance.Length); // slug, dash, 8 hex digits
     }
 
     [Fact]
@@ -111,7 +61,7 @@ public sealed class FirstRunConfigTests : IDisposable
             PeerId = "peer-explicit",
         };
 
-        FirstRunConfig.ApplyDefaults(options, _stateRoot);
+        FirstRunConfig.ApplyDefaults(options, _stateDir);
 
         Assert.Equal("/data/sync", options.SyncDirectory);
         Assert.Equal("/data/state.db", options.DatabasePath);
@@ -124,30 +74,30 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions();
 
-        FirstRunConfig.ApplyDefaults(options, _stateRoot);
+        FirstRunConfig.ApplyDefaults(options, _stateDir);
 
         Assert.Equal("peer-" + Environment.MachineName.Trim().ToLowerInvariant(), options.PeerId);
     }
 
     [Fact]
-    public void FirstStartWritesTheDefaults()
+    public void FirstStartWritesTheDefaultsIntoTheStateDirectory()
     {
         var options = new EntangleOptions();
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out var path, _stateRoot);
+        var wrote = FirstRunConfig.InitializeIfMissing(_stateDir, options, out var path);
 
         Assert.True(wrote);
-        Assert.Equal(UserConfigPath, path);
-        Assert.True(File.Exists(UserConfigPath));
+        Assert.Equal(ConfigPath, path);
+        Assert.True(File.Exists(ConfigPath));
     }
 
     [Fact]
     public void WrittenFileCarriesNoDerivedKeys()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+        FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
 
-        using var document = JsonDocument.Parse(File.ReadAllText(UserConfigPath));
+        using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
         var keys = document.RootElement
             .GetProperty("Entangle")
             .EnumerateObject()
@@ -164,17 +114,17 @@ public sealed class FirstRunConfigTests : IDisposable
     }
 
     [Fact]
-    public void WrittenFileRecordsTheStatePathAbsolutely()
+    public void WrittenFileRecordsTheDatabaseBesideIt()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+        FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
 
         var path = BindFromFile().DatabasePath;
 
-        // An absolute path, so the run is independent of the working directory, and
-        // no "~" for anything to have to expand.
+        // An absolute path, next to the configuration file, with no "~" for
+        // anything to have to expand.
         Assert.True(Path.IsPathRooted(path));
-        Assert.StartsWith(_stateRoot, path);
+        Assert.Equal(Path.Combine(_stateDir, FirstRunConfig.DatabaseFileName), path);
         Assert.DoesNotContain("~", path);
     }
 
@@ -182,7 +132,7 @@ public sealed class FirstRunConfigTests : IDisposable
     public void WrittenFileBindsBackToTheSameOptions()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+        FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
 
         var bound = BindFromFile();
 
@@ -205,9 +155,9 @@ public sealed class FirstRunConfigTests : IDisposable
     public void WrittenFileCarriesTheIgnorePatternsOnce()
     {
         var options = new EntangleOptions();
-        FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+        FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
 
-        using var document = JsonDocument.Parse(File.ReadAllText(UserConfigPath));
+        using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
 
         Assert.Equal("Entangle", Assert.Single(document.RootElement.EnumerateObject()).Name);
 
@@ -226,25 +176,25 @@ public sealed class FirstRunConfigTests : IDisposable
     [Fact]
     public void SecondStartLeavesTheFileAlone()
     {
-        FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out _, _stateRoot);
-        var edited = File.ReadAllText(UserConfigPath).Replace("\"Port\": 5000", "\"Port\": 5050");
-        File.WriteAllText(UserConfigPath, edited);
+        FirstRunConfig.InitializeIfMissing(_stateDir, new EntangleOptions(), out _);
+        var edited = File.ReadAllText(ConfigPath).Replace("\"Port\": 5000", "\"Port\": 5050");
+        File.WriteAllText(ConfigPath, edited);
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out var path, _stateRoot);
+        var wrote = FirstRunConfig.InitializeIfMissing(_stateDir, new EntangleOptions(), out var path);
 
         Assert.False(wrote);
-        Assert.Equal(UserConfigPath, path);
-        Assert.Equal(edited, File.ReadAllText(UserConfigPath));
+        Assert.Equal(ConfigPath, path);
+        Assert.Equal(edited, File.ReadAllText(ConfigPath));
         Assert.Equal(5050, BindFromFile().Port);
     }
 
     [Fact]
     public void MissingValuesInAnExistingFileAreNotFilledIn()
     {
-        File.WriteAllText(UserConfigPath, """{ "Entangle": { "Port": 5000 } }""");
+        File.WriteAllText(ConfigPath, """{ "Entangle": { "Port": 5000 } }""");
 
         var options = new EntangleOptions();
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+        var wrote = FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
 
         Assert.False(wrote);
         Assert.Equal("", options.SyncDirectory);
@@ -256,62 +206,56 @@ public sealed class FirstRunConfigTests : IDisposable
     {
         var options = new EntangleOptions { Port = 0 };
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, options, out _, _stateRoot);
+        var wrote = FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
 
         Assert.False(wrote);
-        Assert.False(File.Exists(UserConfigPath));
+        Assert.False(File.Exists(ConfigPath));
     }
 
     [Fact]
-    public void AWorkingDirectoryFileIsNeverWrittenToOrOverwritten()
+    public void TheStateDirectoryPrefersTheChoiceThenTheEnvironmentThenTheDefault()
     {
-        const string local = """{ "Entangle": { "Port": 5050 } }""";
-        File.WriteAllText(LocalConfigPath, local);
+        var chosen = Path.Combine(_stateDir, "chosen");
+        var fromEnvironment = Path.Combine(_stateDir, "from-env");
+        var previous = Environment.GetEnvironmentVariable(FirstRunConfig.StateDirectoryVariable);
 
-        var wrote = FirstRunConfig.InitializeIfMissing(_dir, new EntangleOptions(), out var path, _stateRoot);
+        try
+        {
+            Environment.SetEnvironmentVariable(FirstRunConfig.StateDirectoryVariable, fromEnvironment);
 
-        // It takes precedence, so it is also the file a reminder should name.
-        Assert.False(wrote);
-        Assert.Equal(LocalConfigPath, path);
-        Assert.False(File.Exists(UserConfigPath));
-        Assert.Equal(local, File.ReadAllText(LocalConfigPath));
+            Assert.Equal(Path.GetFullPath(fromEnvironment), FirstRunConfig.ResolveStateDirectory(null));
+
+            // An explicit choice wins over the environment.
+            Assert.Equal(Path.GetFullPath(chosen), FirstRunConfig.ResolveStateDirectory(chosen));
+
+            Environment.SetEnvironmentVariable(FirstRunConfig.StateDirectoryVariable, null);
+            Assert.Equal(FirstRunConfig.DefaultStateDirectory, FirstRunConfig.ResolveStateDirectory(null));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FirstRunConfig.StateDirectoryVariable, previous);
+        }
     }
 
     [Fact]
-    public void TheWorkingDirectoryFileOverridesThePerUserFile()
+    public void AddConfigReadsTheStateDirectoryFile()
     {
-        File.WriteAllText(UserConfigPath, """{ "Entangle": { "Port": 6000, "PeerAddress": "http://per-user:5000" } }""");
-        File.WriteAllText(LocalConfigPath, """{ "Entangle": { "Port": 7000 } }""");
+        File.WriteAllText(ConfigPath, """{ "Entangle": { "Port": 5050, "PeerId": "peer-file" } }""");
 
         var configuration = new ConfigurationManager();
-        configuration.AddJsonFile(LocalConfigPath, optional: true);
-        FirstRunConfig.AddUserConfig(configuration, _stateRoot);
-
-        var options = configuration.GetSection("Entangle").Get<EntangleOptions>()!;
-
-        Assert.Equal(7000, options.Port);
-        Assert.Equal("http://per-user:5000", options.PeerAddress);
-    }
-
-    [Fact]
-    public void ThePerUserFileIsTheLowestPrecedenceSource()
-    {
-        File.WriteAllText(UserConfigPath, """{ "Entangle": { "Port": 6000, "PeerId": "peer-file" } }""");
-
-        var configuration = new ConfigurationManager();
+        FirstRunConfig.AddConfig(configuration, _stateDir);
         configuration.AddCommandLine(["--Entangle:PeerId=peer-cli"]);
-        FirstRunConfig.AddUserConfig(configuration, _stateRoot);
 
-        // The command line wins; the per-user file fills everything else.
-        Assert.Equal(6000, configuration.GetValue<int>("Entangle:Port"));
+        // The file is read, and the command line still wins over it.
+        Assert.Equal(5050, configuration.GetValue<int>("Entangle:Port"));
         Assert.Equal("peer-cli", configuration["Entangle:PeerId"]);
     }
 
     [Fact]
-    public void NoPerUserFileIsAddedWhenThereIsNone()
+    public void AddConfigAddsNothingWhenThereIsNoFile()
     {
         var configuration = new ConfigurationManager();
-        FirstRunConfig.AddUserConfig(configuration, Path.Combine(_stateRoot, "absent"));
+        FirstRunConfig.AddConfig(configuration, Path.Combine(_stateDir, "absent"));
 
         Assert.Null(configuration["Entangle:Port"]);
     }

@@ -88,7 +88,7 @@ public sealed class EntangleOptionsTests : IDisposable
 
         Assert.Equal(EntangleOptions.LoopbackBindAddress, options.BindAddress);
 
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, Path.GetTempPath());
         Assert.Empty(options.Validate());
     }
 
@@ -103,7 +103,7 @@ public sealed class EntangleOptionsTests : IDisposable
     public void AKnownBindAddressPassesValidation(string address)
     {
         var options = new EntangleOptions { BindAddress = address };
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, Path.GetTempPath());
 
         Assert.Empty(options.Validate());
     }
@@ -117,7 +117,7 @@ public sealed class EntangleOptionsTests : IDisposable
     public void AnUnknownBindAddressIsRejected(string address)
     {
         var options = new EntangleOptions { BindAddress = address };
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, Path.GetTempPath());
 
         Assert.Contains(options.Validate(), error => error.Contains("BindAddress"));
     }
@@ -150,7 +150,7 @@ public sealed class EntangleOptionsTests : IDisposable
     {
         // Accepting the marker is what allows a reminder instead of "must be set".
         var options = new EntangleOptions { PeerAddress = EntangleOptions.UnsetPeerAddress };
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, Path.GetTempPath());
 
         Assert.Empty(options.Validate());
     }
@@ -162,7 +162,7 @@ public sealed class EntangleOptionsTests : IDisposable
     public void ADialablePeerAddressPassesValidation(string address)
     {
         var options = new EntangleOptions { PeerAddress = address };
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, Path.GetTempPath());
 
         Assert.Empty(options.Validate());
     }
@@ -176,7 +176,7 @@ public sealed class EntangleOptionsTests : IDisposable
     public void AMalformedPeerAddressIsRejected(string address)
     {
         var options = new EntangleOptions { PeerAddress = address };
-        FirstRunConfig.ApplyDefaults(options);
+        FirstRunConfig.ApplyDefaults(options, Path.GetTempPath());
 
         Assert.Contains(options.Validate(), error => error.Contains("PeerAddress"));
     }

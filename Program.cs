@@ -26,24 +26,36 @@ switch (parsed.Command)
         return 2;
 }
 
-var builder = WebApplication.CreateBuilder(parsed.Arguments.ToArray());
+// The state directory has to be known before configuration is read — it is where
+// the configuration file lives — so it comes from the command line or the
+// environment, not from the file itself.
+var stateDirectory = FirstRunConfig.ResolveStateDirectory(parsed.StateDirectory);
 
-// The per-user config file is the baseline, so a working directory's own
-// appsettings.json, the environment, and the command line all override it.
-FirstRunConfig.AddUserConfig(builder.Configuration);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = parsed.Arguments.ToArray() });
+
+// Configuration comes from the state directory's appsettings.json, the
+// environment, and the command line — never from the working directory — so a peer
+// behaves the same wherever it is started. The sources ASP.NET added by default (a
+// working-directory appsettings.json and appsettings.{env}.json) are dropped so
+// the same configuration root feeds both this binding and the host.
+builder.Configuration.Sources.Clear();
+FirstRunConfig.AddConfig(builder.Configuration, stateDirectory);
+builder.Configuration.AddEnvironmentVariables();
+builder.Configuration.AddCommandLine(parsed.Arguments.ToArray());
 
 // Load configuration, failing fast on invalid values.
 var entangle = builder.Configuration.GetSection("Entangle").Get<EntangleOptions>() ?? new EntangleOptions();
 
-// First start with no configuration anywhere: the synced files live in the working
-// directory and the state database and configuration under the state root
-// (~/.entangle, %LOCALAPPDATA%\entangle on Windows). The generated file lands
-// there rather than in the working directory, so a start from an arbitrary
-// directory leaves that directory alone; the state root holds one database
-// directory per synced tree. All other starts read the files as they are, however
-// the user has since edited them.
-if (FirstRunConfig.InitializeIfMissing(builder.Environment.ContentRootPath, entangle, out var configPath))
+// First start with no configuration in the state directory: the synced files live
+// in the working directory and the configuration and database in the state
+// directory. All other starts read the file as the user has since edited it.
+if (FirstRunConfig.InitializeIfMissing(stateDirectory, entangle, out var configPath))
     Console.WriteLine($"Entangle: wrote default configuration to {configPath}");
+
+// The database is collocated with the configuration by default; derive it when an
+// existing file does not name one.
+if (string.IsNullOrWhiteSpace(entangle.DatabasePath))
+    entangle.DatabasePath = FirstRunConfig.DefaultDatabasePath(stateDirectory);
 
 var errors = entangle.Validate();
 if (errors.Count > 0)
@@ -105,5 +117,5 @@ catch (Exception ex)
     return 1;
 }
 
-EntangleApp.Build(entangle).Run();
+EntangleApp.Build(builder, entangle).Run();
 return 0;

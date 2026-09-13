@@ -9,10 +9,13 @@ namespace Entangle;
 /// <summary>Builds a configured Entangle peer <see cref="WebApplication"/>.</summary>
 public static class EntangleApp
 {
-    public static WebApplication Build(EntangleOptions options)
+    /// <summary>
+    /// Builds the peer on <paramref name="builder"/>, which the caller has already
+    /// configured, so the host and the peer share one configuration root instead of
+    /// the host reading a second, different one.
+    /// </summary>
+    public static WebApplication Build(WebApplicationBuilder builder, EntangleOptions options)
     {
-        var builder = WebApplication.CreateBuilder();
-
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<SyncMetrics>();
         builder.Services.AddSingleton(new IgnoreMatcher(

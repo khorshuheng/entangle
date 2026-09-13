@@ -481,9 +481,6 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# Entangle local state: the database and its SQLite sidecars, plus the sync
-# directory the checked-in appsettings.json uses. Both are written by a run from
-# this checkout; a generated config keeps them outside the working directory
-# instead, under the state root (~/.entangle).
-entangle.db*
+# Default sync directory, created by a run from this checkout. Configuration and
+# the SQLite database live under the state directory (~/.entangle), not here.
 /entangled/

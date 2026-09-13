@@ -5,6 +5,10 @@
     <AssemblyName>entangle</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Build output (notably the publish/ directory the Makefile and build.cmd
+         write to) must never be picked up as project content, or each publish
+         would fold the previous one back in. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +19,15 @@
     <Compile Remove="Entangle.Tests\**" />
     <Content Remove="Entangle.Tests\**" />
     <None Remove="Entangle.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Configuration lives in the state directory, not next to the binary: a
+         working-directory appsettings.json is not read, so shipping one would only
+         seed a stray file. Guarded here so a local copy can never reach a build or
+         a publish. -->
+    <Content Update="appsettings.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.Development.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <ItemGroup>

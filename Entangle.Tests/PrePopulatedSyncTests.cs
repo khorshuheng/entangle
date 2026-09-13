@@ -43,8 +43,8 @@ public sealed class PrePopulatedSyncTests : IAsyncLifetime
         var portA = GetFreePort();
         var portB = GetFreePort();
 
-        _a = EntangleApp.Build(Options(_dirA, portA, portB, "a"));
-        _b = EntangleApp.Build(Options(_dirB, portB, portA, "b"));
+        _a = EntangleApp.Build(WebApplication.CreateBuilder(), Options(_dirA, portA, portB, "a"));
+        _b = EntangleApp.Build(WebApplication.CreateBuilder(), Options(_dirB, portB, portA, "b"));
 
         return Task.WhenAll(_a.StartAsync(), _b.StartAsync());
     }

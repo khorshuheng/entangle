@@ -13,7 +13,10 @@ public sealed class EntangleOptions
     /// <summary>Local directory to keep in sync (required).</summary>
     public string SyncDirectory { get; set; } = "";
 
-    /// <summary>Path to the local SQLite state database (required).</summary>
+    /// <summary>
+    /// Path to the local SQLite state database. Unset means <c>entangle.db</c> in
+    /// the state directory, collocated with appsettings.json.
+    /// </summary>
     public string DatabasePath { get; set; } = "";
 
     /// <summary>Port the gRPC server listens on.</summary>
@@ -156,8 +159,6 @@ public sealed class EntangleOptions
 
         if (string.IsNullOrWhiteSpace(SyncDirectory))
             errors.Add("Entangle:SyncDirectory must be set.");
-        if (string.IsNullOrWhiteSpace(DatabasePath))
-            errors.Add("Entangle:DatabasePath must be set.");
         if (string.IsNullOrWhiteSpace(PeerAddress))
             errors.Add("Entangle:PeerAddress must be set.");
         else if (!IsUnsetPeer(PeerAddress) && !IsDialablePeerAddress(PeerAddress))

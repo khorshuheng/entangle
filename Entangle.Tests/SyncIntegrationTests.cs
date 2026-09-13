@@ -35,8 +35,8 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
         _optionsA = Options(_dirA, portA, portB, "a");
         _optionsB = Options(_dirB, portB, portA, "b");
 
-        _a = EntangleApp.Build(_optionsA);
-        _b = EntangleApp.Build(_optionsB);
+        _a = EntangleApp.Build(WebApplication.CreateBuilder(), _optionsA);
+        _b = EntangleApp.Build(WebApplication.CreateBuilder(), _optionsB);
 
         await _a.StartAsync();
         await _b.StartAsync();
@@ -99,7 +99,7 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
         await File.WriteAllBytesAsync(Path.Combine(_dirB, "large-pull.bin"), payload);
         await Task.Delay(TimeSpan.FromSeconds(2)); // let B record it locally
 
-        _a = EntangleApp.Build(_optionsA);
+        _a = EntangleApp.Build(WebApplication.CreateBuilder(), _optionsA);
         await _a.StartAsync();
 
         var pathA = Path.Combine(_dirA, "large-pull.bin");
@@ -220,7 +220,7 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
         await Task.Delay(TimeSpan.FromSeconds(2));
 
         // Bring B back and verify it converges.
-        _b = EntangleApp.Build(_optionsB);
+        _b = EntangleApp.Build(WebApplication.CreateBuilder(), _optionsB);
         await _b.StartAsync();
 
         await WaitForAsync(() =>

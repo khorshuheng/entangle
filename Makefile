@@ -29,7 +29,7 @@ build:
 		-p:PublishSingleFile=true \
 		-p:IncludeNativeLibrariesForSelfExtract=true \
 		-o $(OUT)
-	rm -f $(OUT)/*.pdb $(OUT)/*.staticwebassets.endpoints.json $(OUT)/appsettings.Development.json
+	rm -f $(OUT)/*.pdb $(OUT)/*.staticwebassets.endpoints.json
 	@echo
 	@echo "built $(BIN) ($$(du -h $(BIN) | cut -f1)); run it with ./$(BIN)"
 

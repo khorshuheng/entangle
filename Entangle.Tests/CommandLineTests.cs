@@ -67,6 +67,35 @@ public class CommandLineTests
 
         Assert.Equal(Command.Run, parsed.Command);
         Assert.Empty(parsed.Arguments);
+        Assert.Null(parsed.StateDirectory);
+    }
+
+    [Fact]
+    public void StateDirectoryIsTakenOutOfTheConfigurationOptions()
+    {
+        var parsed = CommandLine.Parse(["run", "--state-dir", "/tmp/state", "--Entangle:Port=5555"]);
+
+        Assert.Equal(Command.Run, parsed.Command);
+        Assert.Equal("/tmp/state", parsed.StateDirectory);
+        Assert.Equal(new[] { "--Entangle:Port=5555" }, parsed.Arguments);
+    }
+
+    [Fact]
+    public void StateDirectoryAcceptsTheEqualsForm()
+    {
+        var parsed = CommandLine.Parse(["run", "--state-dir=/tmp/state", "--Entangle:Port=5555"]);
+
+        Assert.Equal(Command.Run, parsed.Command);
+        Assert.Equal("/tmp/state", parsed.StateDirectory);
+        Assert.Equal(new[] { "--Entangle:Port=5555" }, parsed.Arguments);
+    }
+
+    [Fact]
+    public void AStateDirectoryWithoutAValueIsAUsageError()
+    {
+        var parsed = CommandLine.Parse(["run", "--state-dir"]);
+
+        Assert.Equal(Command.UsageError, parsed.Command);
     }
 
     [Theory]
@@ -91,6 +120,7 @@ public class CommandLineTests
         Assert.Contains("--help", usage);
         Assert.Contains("--version", usage);
         Assert.Contains("--Entangle:PeerAddress", usage);
+        Assert.Contains("--state-dir", usage);
     }
 
     [Fact]
