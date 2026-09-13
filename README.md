@@ -89,6 +89,21 @@ is logged; the sync loop keeps running rather than aborting.
 
 ## Build
 
+For development:
+
+```sh
+make          # linux: publish/linux-x64/entangle
+build.cmd     # windows: publish\win-x64\entangle.exe
+```
+
+Both publish a single framework-dependent binary (managed assemblies and the
+native SQLite library bundled in) plus the appsettings.json next to it, and both
+accept `test`, `clean`, and an explicit runtime identifier (`make RID=linux-arm64`,
+`build.cmd win-arm64`). Framework-dependent means the machine that runs the
+result needs the ASP.NET Core 10 runtime, not just the .NET runtime.
+
+Plain MSBuild still works:
+
 ```sh
 dotnet build
 ```
@@ -102,6 +117,12 @@ dotnet run
 The service listens on the configured port using plaintext HTTP/2 gRPC.
 
 ## Test
+
+```sh
+make test        # or: build.cmd test
+```
+
+or directly:
 
 ```sh
 dotnet test
