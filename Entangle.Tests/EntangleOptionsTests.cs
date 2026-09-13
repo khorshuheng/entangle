@@ -113,4 +113,30 @@ public sealed class EntangleOptionsTests : IDisposable
 
         Assert.Empty(options.Validate());
     }
+
+    [Theory]
+    [InlineData("http://otherhost:5000")]
+    [InlineData("http://127.0.0.1:5001")]
+    [InlineData("https://remote.example.com")]
+    public void ADialablePeerAddressPassesValidation(string address)
+    {
+        var options = new EntangleOptions { PeerAddress = address };
+        FirstRunConfig.ApplyDefaults(options);
+
+        Assert.Empty(options.Validate());
+    }
+
+    [Theory]
+    [InlineData("localhost:5001")]
+    [InlineData("otherhost:5000")]
+    [InlineData("ftp://otherhost:5000")]
+    [InlineData("/srv/peer")]
+    [InlineData("not an address")]
+    public void AMalformedPeerAddressIsRejected(string address)
+    {
+        var options = new EntangleOptions { PeerAddress = address };
+        FirstRunConfig.ApplyDefaults(options);
+
+        Assert.Contains(options.Validate(), error => error.Contains("PeerAddress"));
+    }
 }

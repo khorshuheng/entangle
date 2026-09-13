@@ -19,8 +19,8 @@ public sealed class EntangleOptions
     public int Port { get; set; } = 5000;
 
     /// <summary>
-    /// Address of the peer instance to sync with (required; holds
-    /// <see cref="UnsetPeerAddress"/> until one has been chosen).
+    /// Address of the peer instance to sync with, as an absolute http(s) URI
+    /// (required; holds <see cref="UnsetPeerAddress"/> until one has been chosen).
     /// </summary>
     public string PeerAddress { get; set; } = "";
 
@@ -34,15 +34,28 @@ public sealed class EntangleOptions
     public const string UnsetPeerAddress = "unset";
 
     /// <summary>
-    /// True once a peer address has actually been chosen. The marker compares
-    /// case-insensitively, so a hand-typed <c>UNSET</c> still counts as unchosen.
-    /// Kept out of configuration serialisation, which writes
-    /// <see cref="PeerAddress"/>.
+    /// True once a peer address has actually been chosen. Kept out of configuration
+    /// serialisation, which writes <see cref="PeerAddress"/>.
     /// </summary>
     [JsonIgnore]
-    public bool PeerIsConfigured =>
-        !string.IsNullOrWhiteSpace(PeerAddress)
-        && !string.Equals(PeerAddress.Trim(), UnsetPeerAddress, StringComparison.OrdinalIgnoreCase);
+    public bool PeerIsConfigured => !IsUnsetPeer(PeerAddress);
+
+    /// <summary>
+    /// True while no peer address has been chosen: blank, or the marker, compared
+    /// case-insensitively so a hand-typed <c>UNSET</c> still counts as unchosen.
+    /// </summary>
+    public static bool IsUnsetPeer(string? peerAddress) =>
+        string.IsNullOrWhiteSpace(peerAddress)
+        || string.Equals(peerAddress.Trim(), UnsetPeerAddress, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True for an address this client can dial: an absolute URI with an http or
+    /// https scheme. The scheme check is what rejects a bare <c>host:port</c>, which
+    /// parses as an absolute URI whose scheme is the host.
+    /// </summary>
+    public static bool IsDialablePeerAddress(string? peerAddress) =>
+        Uri.TryCreate(peerAddress, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
     /// <summary>Stable unique id for this peer; used for LWW tie-break (required).</summary>
     public string PeerId { get; set; } = "";
@@ -114,6 +127,8 @@ public sealed class EntangleOptions
             errors.Add("Entangle:DatabasePath must be set.");
         if (string.IsNullOrWhiteSpace(PeerAddress))
             errors.Add("Entangle:PeerAddress must be set.");
+        else if (!IsUnsetPeer(PeerAddress) && !IsDialablePeerAddress(PeerAddress))
+            errors.Add($"Entangle:PeerAddress must be an absolute http(s) address (got '{PeerAddress}').");
         if (string.IsNullOrWhiteSpace(PeerId))
             errors.Add("Entangle:PeerId must be set.");
         if (Port is < 1 or > 65535)

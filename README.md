@@ -28,7 +28,7 @@ Configuration is read from appsettings.json, environment variables
 | `SyncDirectory`        | Local directory to keep in sync (required; first start uses `./entangled`) |
 | `DatabasePath`         | Path to the local SQLite state database (required; first start uses `./entangle.db`) |
 | `Port`                 | gRPC listen port (default `5000`)                        |
-| `PeerAddress`          | Address of the peer instance (required; first start writes the marker `unset`, which stops the run with a reminder) |
+| `PeerAddress`          | Address of the peer instance, as an absolute http(s) URL (required; first start writes the marker `unset`, which stops the run with a reminder) |
 | `PeerId`               | Stable unique id, used for LWW tie-break (required; first start uses `peer-<hostname>`) |
 | `RescanIntervalSeconds`| Periodic full rescan interval (default `30`)             |
 | `SyncIntervalSeconds`  | Interval between reconcile passes (default `5`)          |
