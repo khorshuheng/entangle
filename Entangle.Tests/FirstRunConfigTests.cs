@@ -39,7 +39,11 @@ public sealed class FirstRunConfigTests : IDisposable
         Assert.Empty(options.Validate());
         Assert.Equal(FirstRunConfig.DefaultSyncDirectory, options.SyncDirectory);
         Assert.Equal(FirstRunConfig.DefaultDatabasePath, options.DatabasePath);
-        Assert.Equal(FirstRunConfig.DefaultPeerAddress, options.PeerAddress);
+
+        // The peer is deliberately left unchosen: no address can be guessed, so the
+        // run stops with a reminder instead.
+        Assert.Equal(EntangleOptions.UnsetPeerAddress, options.PeerAddress);
+        Assert.False(options.PeerIsConfigured);
     }
 
     [Fact]
@@ -81,6 +85,28 @@ public sealed class FirstRunConfigTests : IDisposable
         Assert.True(wrote);
         Assert.Equal(ConfigPath, path);
         Assert.True(File.Exists(ConfigPath));
+    }
+
+    [Fact]
+    public void WrittenFileCarriesNoDerivedKeys()
+    {
+        var options = new EntangleOptions();
+        FirstRunConfig.InitializeIfMissing(_dir, options, out _);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
+        var keys = document.RootElement
+            .GetProperty("Entangle")
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .ToList();
+
+        // Derived, read-only members must stay out of the file the user edits.
+        Assert.DoesNotContain("PeerIsConfigured", keys);
+        Assert.DoesNotContain("EffectiveIgnorePatterns", keys);
+
+        // While the values that can be edited are all there.
+        Assert.Contains("PeerAddress", keys);
+        Assert.Contains("IgnorePatterns", keys);
     }
 
     [Fact]

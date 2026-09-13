@@ -47,6 +47,20 @@ if (errors.Count > 0)
     return 1;
 }
 
+// The peer's address cannot be guessed, so a peer that has never been given one
+// stops the run, before the sync directory, the store, and the port. Dialling a
+// placeholder forever would present a missing setting as a network problem.
+//
+// This check comes after validation on purpose: reporting "no peer configured" for
+// a configuration that is broken elsewhere would hide the real error, and on a
+// first start it would point at a file that validation prevented from being
+// written.
+if (!entangle.PeerIsConfigured)
+{
+    Console.Error.WriteLine(PeerReminder.Compose(configPath));
+    return 1;
+}
+
 // Resolve relative paths once, against the content root, so every consumer
 // (scanner, watcher, store) operates on the same absolute paths.
 entangle.SyncDirectory = Path.GetFullPath(entangle.SyncDirectory);

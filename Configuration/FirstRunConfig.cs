@@ -20,12 +20,6 @@ public static class FirstRunConfig
     public const string DefaultDatabasePath = "./entangle.db";
 
     /// <summary>
-    /// Default peer address, expecting a second instance on the same host on the
-    /// next port up.
-    /// </summary>
-    public const string DefaultPeerAddress = "http://localhost:5001";
-
-    /// <summary>
     /// Fills in the values that no configuration source supplies, leaving anything
     /// already set — from the environment or the command line — untouched.
     /// </summary>
@@ -36,7 +30,7 @@ public static class FirstRunConfig
         if (string.IsNullOrWhiteSpace(options.DatabasePath))
             options.DatabasePath = DefaultDatabasePath;
         if (string.IsNullOrWhiteSpace(options.PeerAddress))
-            options.PeerAddress = DefaultPeerAddress;
+            options.PeerAddress = EntangleOptions.UnsetPeerAddress;
         if (string.IsNullOrWhiteSpace(options.PeerId))
             options.PeerId = NewPeerId();
         if (options.IgnorePatterns is null)

@@ -28,7 +28,7 @@ Configuration is read from appsettings.json, environment variables
 | `SyncDirectory`        | Local directory to keep in sync (required; first start uses `./entangled`) |
 | `DatabasePath`         | Path to the local SQLite state database (required; first start uses `./entangle.db`) |
 | `Port`                 | gRPC listen port (default `5000`)                        |
-| `PeerAddress`          | Address of the peer instance (required; first start uses `http://localhost:5001`) |
+| `PeerAddress`          | Address of the peer instance (required; first start writes the marker `unset`, which stops the run with a reminder) |
 | `PeerId`               | Stable unique id, used for LWW tie-break (required; first start uses `peer-<hostname>`) |
 | `RescanIntervalSeconds`| Periodic full rescan interval (default `30`)             |
 | `SyncIntervalSeconds`  | Interval between reconcile passes (default `5`)          |
@@ -47,12 +47,21 @@ tie-break cannot pick a winner, and the two copies would not converge.
 
 On first start in a working directory that has no appsettings.json, Entangle
 writes one: `./entangled` as the sync directory, `./entangle.db` as the state
-database, port `5000`, peer address `http://localhost:5001`, and a `PeerId`
-taken from the machine name (`peer-<hostname>`). Anything supplied by
-environment variables or CLI args is kept and recorded, so a start with
-`--Entangle:SyncDirectory=/data` writes `/data` into the file. The file is only
-ever written when it is absent and the options are valid, so a failed start
-leaves nothing behind.
+database, port `5000`, and a `PeerId` taken from the machine name
+(`peer-<hostname>`). Anything supplied by environment variables or CLI args is
+kept and recorded, so a start with `--Entangle:SyncDirectory=/data` writes
+`/data` into the file. The file is only ever written when it is absent and the
+options are valid, so a failed start leaves nothing behind.
+
+The peer address is the exception, because it cannot be guessed: the file gets
+the marker `"PeerAddress": "unset"` and the run stops there, printing where to
+set it and how. Nothing else is created — no sync directory, no database, no
+listening port — until an address is there:
+
+```sh
+entangle run                                              # writes the file, stops
+entangle run --Entangle:PeerAddress=http://otherhost:5000  # or say it up front
+```
 
 After that the file is yours: it is never rewritten. Edit it to change the
 setup, or override individual keys from the environment or the command line.

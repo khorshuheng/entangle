@@ -80,4 +80,37 @@ public sealed class EntangleOptionsTests : IDisposable
         Assert.True(Bind("""{ "IgnoreCase": true }""").IgnoreCase);
         Assert.False(Bind("""{ "IgnoreCase": false }""").IgnoreCase);
     }
+
+    [Theory]
+    [InlineData("http://otherhost:5000")]
+    [InlineData("http://localhost:5001")]
+    public void AChosenPeerCountsAsConfigured(string address)
+    {
+        var options = Bind($$"""{ "PeerAddress": "{{address}}" }""");
+
+        Assert.True(options.PeerIsConfigured);
+    }
+
+    [Theory]
+    [InlineData("unset")]
+    [InlineData("UNSET")]
+    [InlineData(" unset ")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AnUnchosenPeerIsNotConfigured(string address)
+    {
+        var options = Bind($$"""{ "PeerAddress": "{{address}}" }""");
+
+        Assert.False(options.PeerIsConfigured);
+    }
+
+    [Fact]
+    public void TheMarkerIsAcceptedByValidation()
+    {
+        // Accepting the marker is what allows a reminder instead of "must be set".
+        var options = new EntangleOptions { PeerAddress = EntangleOptions.UnsetPeerAddress };
+        FirstRunConfig.ApplyDefaults(options);
+
+        Assert.Empty(options.Validate());
+    }
 }

@@ -18,8 +18,31 @@ public sealed class EntangleOptions
     /// <summary>Port the gRPC server listens on.</summary>
     public int Port { get; set; } = 5000;
 
-    /// <summary>Address of the peer instance to sync with (required).</summary>
+    /// <summary>
+    /// Address of the peer instance to sync with (required; holds
+    /// <see cref="UnsetPeerAddress"/> until one has been chosen).
+    /// </summary>
     public string PeerAddress { get; set; } = "";
+
+    /// <summary>
+    /// Marker standing for "no peer chosen yet". It is deliberately a valid value
+    /// for <see cref="Validate"/>: that is what lets the run path tell "not chosen"
+    /// apart from "malformed", and refuse to start with a reminder instead of
+    /// dialling an address nobody supplied. No valid peer address can equal it,
+    /// since an address is an absolute URI.
+    /// </summary>
+    public const string UnsetPeerAddress = "unset";
+
+    /// <summary>
+    /// True once a peer address has actually been chosen. The marker compares
+    /// case-insensitively, so a hand-typed <c>UNSET</c> still counts as unchosen.
+    /// Kept out of configuration serialisation, which writes
+    /// <see cref="PeerAddress"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool PeerIsConfigured =>
+        !string.IsNullOrWhiteSpace(PeerAddress)
+        && !string.Equals(PeerAddress.Trim(), UnsetPeerAddress, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Stable unique id for this peer; used for LWW tie-break (required).</summary>
     public string PeerId { get; set; } = "";
