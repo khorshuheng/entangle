@@ -480,3 +480,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Entangle local state: the database and its SQLite sidecars. A run from this
+# checkout writes ./entangle.db because the checked-in appsettings.json names that
+# path explicitly; configs generated on a first start keep state outside the
+# working directory instead.
+entangle.db*
