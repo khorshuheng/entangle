@@ -99,7 +99,6 @@ public sealed class ChangeWatcher : BackgroundService
                     first,
                     second));
 
-            var changed = 0;
             foreach (var existing in _store.GetEntries())
             {
                 if (_ignore.IsIgnoredEntry(existing.Path))
@@ -111,7 +110,6 @@ public sealed class ChangeWatcher : BackgroundService
                     // tombstone branch so tombstones for newly ignored paths are
                     // dropped too, rather than lingering un-reconcilable forever.
                     _store.Remove(existing.Path);
-                    changed++;
                     continue;
                 }
 
@@ -124,7 +122,6 @@ public sealed class ChangeWatcher : BackgroundService
                     // record a deletion tombstone so the delete still propagates.
                     var tombstone = new SyncEntry(existing.Path, existing.Type, DirectoryScanner.UtcNowMs(), Tombstone: true);
                     _store.Upsert(tombstone);
-                    changed++;
                 }
             }
 
@@ -134,11 +131,8 @@ public sealed class ChangeWatcher : BackgroundService
                 if (old is null || old != entry)
                 {
                     _store.Upsert(entry);
-                    changed++;
                 }
             }
-
-            _logger.LogDebug("Rescan: {Entries} entries, {Changed} changed", scanned.Count, changed);
         }
         catch (Exception ex)
         {

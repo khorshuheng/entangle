@@ -119,9 +119,28 @@ public static class FirstRunConfig
         return true;
     }
 
-    /// <summary>Serialises the effective options as the "Entangle" section of a config file.</summary>
+    /// <summary>
+    /// Serialises the effective options as the "Entangle" section of a config file,
+    /// alongside a Logging section that pins the level the service expects. A
+    /// generated file therefore starts quiet: the service reports file operations
+    /// and problems, while the framework stays at warnings, so a long-running peer
+    /// cannot flood its terminal or accumulate scrollback by accident.
+    /// </summary>
     private static string Serialize(EntangleOptions options) =>
-        JsonSerializer.Serialize(new { Entangle = options }, JsonOptions) + Environment.NewLine;
+        JsonSerializer.Serialize(
+            new
+            {
+                Logging = new
+                {
+                    LogLevel = new Dictionary<string, string>
+                    {
+                        ["Default"] = "Information",
+                        ["Microsoft.AspNetCore"] = "Warning",
+                    },
+                },
+                Entangle = options,
+            },
+            JsonOptions) + Environment.NewLine;
 
     /// <summary>
     /// A peer id derived from the machine name, so a peer is recognisable in logs

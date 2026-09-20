@@ -34,8 +34,6 @@ public sealed class SyncServiceImpl : SyncRpc.SyncBase
 
     public override Task<StateReply> ExchangeState(StateRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("State exchange from peer {PeerId} with {Count} entries", request.PeerId, request.Entries.Count);
-
         var reply = new StateReply { PeerId = _options.PeerId };
         foreach (var entry in _store.GetEntries())
             reply.Entries.Add(ProtoMapper.ToProto(entry));

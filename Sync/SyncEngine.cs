@@ -115,17 +115,8 @@ public sealed class SyncEngine : BackgroundService
                     second));
 
         if (actions.Count > 0)
-        {
-            _logger.LogInformation("Reconciling {Count} paths", actions.Count);
-            _logger.LogDebug("Local state: {Local}", Dump(local));
-            _logger.LogDebug("Peer state: {Peer}", Dump(peer));
             await ApplyAsync(actions, ct);
-        }
     }
-
-    private static string Dump(IEnumerable<SyncEntry> entries)
-        => string.Join("; ", entries.Select(e =>
-            $"{e.Path}|{e.Type}|{e.Mtime:O}|{(e.ContentHash.Length >= 8 ? e.ContentHash[..8] : e.ContentHash)}"));
 
     private async Task ApplyAsync(IReadOnlyList<ReconcileAction> actions, CancellationToken ct)
     {
@@ -144,7 +135,7 @@ public sealed class SyncEngine : BackgroundService
                     case ReconcileActionKind.Remove:
                         _store.Remove(action.Source.Path);
                         _metrics.RecordRemove();
-                        _logger.LogDebug("Reclaimed tombstone for {Path}", action.Source.Path);
+                        _logger.LogInformation("Reclaimed tombstone for {Path}", action.Source.Path);
                         break;
                 }
             }
@@ -180,7 +171,7 @@ public sealed class SyncEngine : BackgroundService
             PathUtil.DeletePathAndPruneEmptyParents(_options.SyncDirectory, full, _options.IgnoreCase);
             _store.Upsert(entry);
             _metrics.RecordPull(0);
-            _logger.LogDebug("Deleted {Path} (peer tombstone)", entry.Path);
+            _logger.LogInformation("Deleted {Path} (peer tombstone)", entry.Path);
             return;
         }
 
@@ -202,7 +193,7 @@ public sealed class SyncEngine : BackgroundService
         // Record the converged entry immediately; the watcher will confirm it.
         _store.Upsert(entry);
         _metrics.RecordPull(isDirectory ? 0 : content.Length);
-        _logger.LogDebug("Pulled {Path}", entry.Path);
+        _logger.LogInformation("Pulled {Path}", entry.Path);
     }
 
     private async Task PushAsync(SyncEntry entry, CancellationToken ct)
@@ -216,7 +207,7 @@ public sealed class SyncEngine : BackgroundService
             else
                 WarnRefused(entry.Path);
 
-            _logger.LogDebug("Pushed deletion of {Path}", entry.Path);
+            _logger.LogInformation("Pushed deletion of {Path}", entry.Path);
             return;
         }
 
@@ -247,7 +238,7 @@ public sealed class SyncEngine : BackgroundService
                 WarnRefused(entry.Path);
         }
 
-        _logger.LogDebug("Pushed {Path}", entry.Path);
+        _logger.LogInformation("Pushed {Path}", entry.Path);
     }
 
     /// <summary>

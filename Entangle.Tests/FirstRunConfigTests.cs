@@ -159,7 +159,9 @@ public sealed class FirstRunConfigTests : IDisposable
 
         using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
 
-        Assert.Equal("Entangle", Assert.Single(document.RootElement.EnumerateObject()).Name);
+        // The generated file carries the Entangle section (and the Logging section
+        // that pins the level), so read the one this test is about.
+        Assert.Contains("Entangle", document.RootElement.EnumerateObject().Select(property => property.Name));
 
         // The generated file says that nothing is excluded, rather than leaving
         // the reader to know there is no default.
@@ -171,6 +173,19 @@ public sealed class FirstRunConfigTests : IDisposable
             .ToList();
 
         Assert.Empty(patterns);
+    }
+
+    [Fact]
+    public void WrittenFilePinsTheLogLevel()
+    {
+        FirstRunConfig.InitializeIfMissing(_stateDir, new EntangleOptions(), out _);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(ConfigPath));
+        var levels = document.RootElement.GetProperty("Logging").GetProperty("LogLevel");
+
+        // The service's own messages are shown, while the framework stays quiet.
+        Assert.Equal("Information", levels.GetProperty("Default").GetString());
+        Assert.Equal("Warning", levels.GetProperty("Microsoft.AspNetCore").GetString());
     }
 
     [Fact]
