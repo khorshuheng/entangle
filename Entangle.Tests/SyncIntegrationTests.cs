@@ -244,6 +244,7 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
         SyncIntervalSeconds = 1,
         RescanIntervalSeconds = 1,
         MaxBackoffSeconds = 2,
+        IgnorePatterns = [".git/", "node_modules/"],
     };
 
     private static async Task DisposeAppAsync(WebApplication? app)

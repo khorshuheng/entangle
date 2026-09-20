@@ -134,23 +134,20 @@ public sealed class EntangleOptions
 
     /// <summary>
     /// Glob patterns, matched against sync-relative paths, whose matches are
-    /// excluded from sync. Unset means <see cref="DefaultIgnorePatterns"/>; a
-    /// configured list replaces them entirely. An empty array is indistinguishable
-    /// from an unset key — configuration flattens it away — so the defaults apply
-    /// to it as well; a list of blank entries is what excludes nothing.
+    /// excluded from sync. Unset excludes nothing: each peer's own metadata and
+    /// temporary files are always ignored, but no user path is, so a directory is
+    /// synced whole unless a pattern says otherwise. A list of blank entries also
+    /// excludes nothing.
     /// </summary>
     public List<string>? IgnorePatterns { get; set; }
 
-    /// <summary>Patterns in force when <see cref="IgnorePatterns"/> is unset.</summary>
-    public static IReadOnlyList<string> DefaultIgnorePatterns { get; } = [".git/", "node_modules/"];
-
     /// <summary>
-    /// The patterns to apply: the configured ones, or the defaults when nothing is
+    /// The patterns to apply: the configured ones, or none when nothing is
     /// configured. Kept out of configuration serialisation, which writes
     /// <see cref="IgnorePatterns"/>.
     /// </summary>
     [JsonIgnore]
-    public IReadOnlyList<string> EffectiveIgnorePatterns => IgnorePatterns ?? DefaultIgnorePatterns;
+    public IReadOnlyList<string> EffectiveIgnorePatterns => IgnorePatterns ?? [];
 
     /// <summary>Returns configuration errors; empty when the options are valid.</summary>
     public IReadOnlyList<string> Validate()

@@ -41,7 +41,7 @@ wherever it is started:
 | `MaxBackoffSeconds`    | Max retry backoff while the peer is unreachable (default `60`) |
 | `MaxMessageSizeBytes`  | Max gRPC message size in bytes, i.e. the largest file that can sync (default `67108864`, 64 MiB) |
 | `TombstoneRetentionDays` | Days to keep a deletion tombstone for a path the peer has no record of; `0` (default) reclaims it immediately. Tombstones both sides agree on are always reclaimed immediately |
-| `IgnorePatterns`       | Glob patterns excluded from sync (default `[ ".git/", "node_modules/" ]`; a configured list replaces them) |
+| `IgnorePatterns`       | Glob patterns excluded from sync (default: none — the whole directory is synced; each peer's own database and temporary files are always ignored) |
 | `IgnoreCase`           | Case-insensitive path handling (default on Windows)      |
 
 The service has no authentication or transport encryption, so by default it
@@ -102,11 +102,10 @@ setup, or override individual keys from the environment or the command line.
 
 ### Ignored paths
 
-`IgnorePatterns` uses globs matched against sync-relative paths. A configured
-list replaces the built-in defaults; an empty list does not, because
-configuration cannot tell `[]` apart from an unset key, so the defaults stay in
-force. To exclude nothing at all, configure a single blank entry (`[ "" ]`),
-which matches nothing.
+`IgnorePatterns` uses globs matched against sync-relative paths. Nothing is
+excluded by default, so a directory is synced whole unless a pattern says
+otherwise. The configured list is the whole policy — nothing is added to it —
+and an unset or empty list excludes nothing.
 
 | Pattern          | Matches                                                       |
 | ---------------- | ------------------------------------------------------------- |

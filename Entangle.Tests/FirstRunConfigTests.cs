@@ -148,11 +148,11 @@ public sealed class FirstRunConfigTests : IDisposable
         Assert.Equal(options.MaxMessageSizeBytes, bound.MaxMessageSizeBytes);
         Assert.Equal(options.TombstoneRetentionDays, bound.TombstoneRetentionDays);
         Assert.Equal(options.IgnoreCase, bound.IgnoreCase);
-        Assert.Equal(new[] { ".git/", "node_modules/" }, bound.EffectiveIgnorePatterns);
+        Assert.Empty(bound.EffectiveIgnorePatterns);
     }
 
     [Fact]
-    public void WrittenFileCarriesTheIgnorePatternsOnce()
+    public void WrittenFileRecordsThatNothingIsIgnored()
     {
         var options = new EntangleOptions();
         FirstRunConfig.InitializeIfMissing(_stateDir, options, out _);
@@ -161,8 +161,8 @@ public sealed class FirstRunConfigTests : IDisposable
 
         Assert.Equal("Entangle", Assert.Single(document.RootElement.EnumerateObject()).Name);
 
-        // The generated file lists the defaults explicitly rather than relying on
-        // them being unset, so the file alone documents the policy in force.
+        // The generated file says that nothing is excluded, rather than leaving
+        // the reader to know there is no default.
         var patterns = document.RootElement
             .GetProperty("Entangle")
             .GetProperty("IgnorePatterns")
@@ -170,7 +170,7 @@ public sealed class FirstRunConfigTests : IDisposable
             .Select(pattern => pattern.GetString()!)
             .ToList();
 
-        Assert.Equal(new[] { ".git/", "node_modules/" }, patterns);
+        Assert.Empty(patterns);
     }
 
     [Fact]

@@ -33,6 +33,7 @@ public sealed class PutFileStoreTests : IDisposable
             DatabasePath = db,
             PeerAddress = "http://127.0.0.1:1",
             PeerId = "a",
+            IgnorePatterns = [".git/"],
         };
 
         var store = new SqliteSyncStore(db);

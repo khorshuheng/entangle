@@ -116,12 +116,13 @@ public class IgnoreMatcherTests
     }
 
     [Fact]
-    public void DefaultsCoverGitAndNodeModules()
+    public void NothingIsIgnoredWhenNoPatternsAreConfigured()
     {
         var options = new Entangle.Configuration.EntangleOptions();
         var matcher = new IgnoreMatcher(Root, Db, options.EffectiveIgnorePatterns);
-        Assert.True(matcher.IsIgnoredRelative(".git/HEAD"));
-        Assert.True(matcher.IsIgnoredRelative("node_modules/x/y.js"));
+
+        Assert.False(matcher.IsIgnoredRelative(".git/HEAD"));
+        Assert.False(matcher.IsIgnoredRelative("node_modules/x/y.js"));
         Assert.False(matcher.IsIgnoredRelative("src/app.js"));
     }
 }

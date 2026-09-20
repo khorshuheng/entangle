@@ -6,8 +6,8 @@ namespace Entangle.Tests;
 
 /// <summary>
 /// Binding of the options that carry a default, in particular
-/// <see cref="EntangleOptions.IgnorePatterns"/>: a configured list replaces the
-/// built-in defaults instead of being appended to them.
+/// <see cref="EntangleOptions.IgnorePatterns"/>: a configured list is the whole
+/// policy, and nothing is excluded when it is unset.
 /// </summary>
 public sealed class EntangleOptionsTests : IDisposable
 {
@@ -34,16 +34,16 @@ public sealed class EntangleOptionsTests : IDisposable
     }
 
     [Fact]
-    public void UnsetIgnorePatternsFallBackToTheDefaults()
+    public void UnsetIgnorePatternsExcludeNothing()
     {
         var options = Bind("""{ "Port": 5000 }""");
 
         Assert.Null(options.IgnorePatterns);
-        Assert.Equal(EntangleOptions.DefaultIgnorePatterns, options.EffectiveIgnorePatterns);
+        Assert.Empty(options.EffectiveIgnorePatterns);
     }
 
     [Fact]
-    public void ConfiguredIgnorePatternsReplaceTheDefaults()
+    public void ConfiguredIgnorePatternsAreUsed()
     {
         var options = Bind("""{ "IgnorePatterns": [ "*.log", "build/" ] }""");
 
@@ -51,14 +51,14 @@ public sealed class EntangleOptionsTests : IDisposable
     }
 
     [Fact]
-    public void EmptyIgnorePatternsAreIndistinguishableFromUnsetOnes()
+    public void EmptyIgnorePatternsExcludeNothing()
     {
-        // Configuration flattens an empty array to no keys at all, so "[]" cannot
-        // be told apart from an absent key: both fall back to the defaults.
+        // Configuration flattens an empty array to no keys at all, so "[]" arrives
+        // as null; with no defaults, both mean that nothing is excluded.
         var options = Bind("""{ "IgnorePatterns": [] }""");
 
         Assert.Null(options.IgnorePatterns);
-        Assert.Equal(EntangleOptions.DefaultIgnorePatterns, options.EffectiveIgnorePatterns);
+        Assert.Empty(options.EffectiveIgnorePatterns);
     }
 
     [Fact]
@@ -66,8 +66,6 @@ public sealed class EntangleOptionsTests : IDisposable
     {
         var options = Bind("""{ "IgnorePatterns": [ "" ] }""");
 
-        // IgnoreMatcher drops blank patterns, which is the only way to configure
-        // "exclude nothing": an empty array means the defaults (see above).
         var matcher = new IgnoreMatcher(_dir, databasePath: null, options.EffectiveIgnorePatterns);
 
         Assert.False(matcher.IsIgnoredRelative(".git/HEAD"));

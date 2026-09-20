@@ -78,8 +78,9 @@ public static class FirstRunConfig
             options.PeerAddress = EntangleOptions.UnsetPeerAddress;
         if (string.IsNullOrWhiteSpace(options.PeerId))
             options.PeerId = NewPeerId();
-        if (options.IgnorePatterns is null)
-            options.IgnorePatterns = [.. EntangleOptions.DefaultIgnorePatterns];
+        // An empty list, not null: the generated file should say that nothing is
+        // excluded rather than leave the reader to know there is no default.
+        options.IgnorePatterns ??= [];
     }
 
     /// <summary>
