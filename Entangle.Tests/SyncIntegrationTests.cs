@@ -228,6 +228,38 @@ public sealed class SyncIntegrationTests : IAsyncLifetime
             && File.ReadAllText(Path.Combine(_dirB, "offline.txt")) == "offline");
     }
 
+    [Fact]
+    public async Task UnreadableFileIsNotPropagatedAsDeletion()
+    {
+        if (OperatingSystem.IsWindows() || Environment.IsPrivilegedProcess)
+            return; // POSIX mode bits are how this simulation withholds access
+
+        var pathA = Path.Combine(_dirA, "held.txt");
+        var pathB = Path.Combine(_dirB, "held.txt");
+        await File.WriteAllTextAsync(pathA, "held");
+        await WaitForAsync(() => File.Exists(pathB));
+
+        try
+        {
+            File.SetUnixFileMode(pathA, UnixFileMode.None);
+
+            // Several rescan passes run in this window. An unreadable file is
+            // not a deleted file: A must keep its previous state instead of
+            // tombstoning the path and pushing the deletion to B.
+            await Task.Delay(TimeSpan.FromSeconds(3));
+
+            Assert.True(File.Exists(pathB), "the peer deleted a file that was only locked locally");
+            var entry = Store(_a).GetEntry("held.txt");
+            Assert.NotNull(entry);
+            Assert.False(entry!.Tombstone);
+        }
+        finally
+        {
+            if (File.Exists(pathA))
+                File.SetUnixFileMode(pathA, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
     private static SyncMetrics Metrics(WebApplication app) =>
         app.Services.GetRequiredService<SyncMetrics>();
 

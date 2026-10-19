@@ -14,13 +14,14 @@ public sealed class DirectoryScanner
     public DirectoryScanner(ILogger<DirectoryScanner> logger) => _logger = logger;
 
     /// <summary>Recursively scan a root directory.</summary>
-    public IReadOnlyList<SyncEntry> Scan(string root, IgnoreMatcher? ignore = null)
+    public ScanResult Scan(string root, IgnoreMatcher? ignore = null)
     {
         var fullRoot = Path.GetFullPath(root);
         var matcher = ignore ?? new IgnoreMatcher(fullRoot);
         var result = new List<SyncEntry>();
-        Walk(fullRoot, fullRoot, matcher, result);
-        return result;
+        var unreadable = new List<string>();
+        Walk(fullRoot, fullRoot, string.Empty, matcher, result, unreadable);
+        return new ScanResult(result, unreadable);
     }
 
     /// <summary>
@@ -48,7 +49,13 @@ public sealed class DirectoryScanner
         return null;
     }
 
-    private void Walk(string root, string current, IgnoreMatcher ignore, List<SyncEntry> result)
+    private void Walk(
+        string root,
+        string current,
+        string relative,
+        IgnoreMatcher ignore,
+        List<SyncEntry> result,
+        List<string> unreadable)
     {
         string[] dirs;
         string[] files;
@@ -59,7 +66,12 @@ public sealed class DirectoryScanner
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to enumerate directory {Directory}", current);
+            // The directory is there but cannot be listed (a lock or a
+            // permission denial). Its children are unknown, not gone, so record
+            // the whole subtree as unreadable: reporting them as absent would
+            // turn a transient access failure into a propagated deletion.
+            _logger.LogDebug(ex, "Cannot enumerate {Directory}; keeping its previous state", current);
+            unreadable.Add(relative);
             return;
         }
 
@@ -69,8 +81,9 @@ public sealed class DirectoryScanner
             if (ignore.IsIgnored(full) || IsSymlink(full))
                 continue;
 
-            result.Add(new SyncEntry(ToRelative(root, full), EntryType.Directory, MtimeOfDirectory(full)));
-            Walk(root, full, ignore, result);
+            var childRelative = ToRelative(root, full);
+            result.Add(new SyncEntry(childRelative, EntryType.Directory, MtimeOfDirectory(full)));
+            Walk(root, full, childRelative, ignore, result, unreadable);
         }
 
         foreach (var file in files)
@@ -85,8 +98,41 @@ public sealed class DirectoryScanner
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Skipping unreadable file {File}", full);
+                // A file held open without sharing (or one this user cannot
+                // read) is unreadable, not deleted. Report it so the caller
+                // keeps the state it already had.
+                _logger.LogDebug(ex, "Cannot read {File}; keeping its previous state", full);
+                unreadable.Add(ToRelative(root, full));
             }
+        }
+    }
+
+    /// <summary>
+    /// Result of a scan: the entries that could be read, together with the
+    /// paths whose state could not be determined because they were unreadable
+    /// (locked or permission-denied).
+    /// </summary>
+    public sealed record ScanResult(
+        IReadOnlyList<SyncEntry> Entries,
+        IReadOnlyCollection<string> UnreadablePaths)
+    {
+        /// <summary>
+        /// True when <paramref name="relativePath"/> is, or lies under, a path
+        /// the scan could not read. Its absence from <see cref="Entries"/> then
+        /// says nothing about whether it still exists. The empty path marks a
+        /// root whose own contents could not be enumerated.
+        /// </summary>
+        public bool IsUnreadable(string relativePath, StringComparison comparison)
+        {
+            foreach (var unreadable in UnreadablePaths)
+            {
+                if (unreadable.Length == 0
+                    || relativePath.Equals(unreadable, comparison)
+                    || relativePath.StartsWith(unreadable + "/", comparison))
+                    return true;
+            }
+
+            return false;
         }
     }
 

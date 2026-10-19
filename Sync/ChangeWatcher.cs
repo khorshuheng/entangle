@@ -19,6 +19,7 @@ public sealed class ChangeWatcher : BackgroundService
     private readonly IgnoreMatcher _ignore;
     private readonly ILogger<ChangeWatcher> _logger;
     private readonly StringComparer _pathComparer;
+    private readonly StringComparison _pathComparison;
 
     public ChangeWatcher(
         EntangleOptions options,
@@ -33,6 +34,7 @@ public sealed class ChangeWatcher : BackgroundService
         _ignore = ignore;
         _logger = logger;
         _pathComparer = PathUtil.Comparer(options.IgnoreCase);
+        _pathComparison = PathUtil.Comparison(options.IgnoreCase);
     }
 
     /// <summary>
@@ -92,7 +94,7 @@ public sealed class ChangeWatcher : BackgroundService
         try
         {
             var scanned = _scanner.Scan(_options.SyncDirectory, _ignore);
-            var byPath = PathUtil.IndexByPath(scanned, _pathComparer, (first, second) =>
+            var byPath = PathUtil.IndexByPath(scanned.Entries, _pathComparer, (first, second) =>
                 _logger.LogWarning(
                     "Paths {First} and {Second} collide under the active case-sensitivity; "
                     + "keeping the first and ignoring the second",
@@ -118,6 +120,20 @@ public sealed class ChangeWatcher : BackgroundService
 
                 if (!byPath.ContainsKey(existing.Path))
                 {
+                    // An unreadable path (a file held without sharing, or a
+                    // directory this user cannot list) is absent from the scan
+                    // because it could not be inspected, not because it is gone.
+                    // Treating that as a deletion would propagate the loss of a
+                    // file that is still there; keep the previous state and
+                    // retry on the next pass instead.
+                    if (scanned.IsUnreadable(existing.Path, _pathComparison))
+                    {
+                        _logger.LogDebug(
+                            "Cannot confirm that {Path} is gone: it is unreadable this pass",
+                            existing.Path);
+                        continue;
+                    }
+
                     // Vanished since the last scan (e.g. a missed watcher event):
                     // record a deletion tombstone so the delete still propagates.
                     var tombstone = new SyncEntry(existing.Path, existing.Type, DirectoryScanner.UtcNowMs(), Tombstone: true);
@@ -125,7 +141,7 @@ public sealed class ChangeWatcher : BackgroundService
                 }
             }
 
-            foreach (var entry in scanned)
+            foreach (var entry in scanned.Entries)
             {
                 var old = _store.GetEntry(entry.Path);
                 if (old is null || old != entry)
@@ -156,6 +172,13 @@ public sealed class ChangeWatcher : BackgroundService
                     _store.Upsert(entry);
                 }
             }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Locked or permission-denied right now. The path is unreadable, not
+            // changed, so leave sync state alone; the next rescan will pick it
+            // up once it can be read.
+            _logger.LogDebug(ex, "Deferring change to unreadable {Path}", fullPath);
         }
         catch (Exception ex)
         {

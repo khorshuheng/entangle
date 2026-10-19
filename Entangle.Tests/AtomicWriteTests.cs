@@ -80,7 +80,7 @@ public sealed class AtomicWriteTests : IDisposable
         File.WriteAllText(Path.Combine(_dir, "real.txt" + PathUtil.TempSuffix + "-deadbeef"), "in flight");
 
         var scanner = new DirectoryScanner(NullLogger<DirectoryScanner>.Instance);
-        var entries = scanner.Scan(_dir);
+        var entries = scanner.Scan(_dir).Entries;
 
         var entry = Assert.Single(entries);
         Assert.Equal("real.txt", entry.Path);

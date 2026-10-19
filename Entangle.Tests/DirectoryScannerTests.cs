@@ -32,7 +32,7 @@ public sealed class DirectoryScannerTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "sub"));
         File.WriteAllText(Path.Combine(_root, "sub", "nested.txt"), "nested");
 
-        var paths = _scanner.Scan(_root).Select(e => e.Path).OrderBy(p => p).ToArray();
+        var paths = _scanner.Scan(_root).Entries.Select(e => e.Path).OrderBy(p => p).ToArray();
 
         Assert.Equal(new[] { "file.txt", "sub", "sub/nested.txt" }, paths);
     }
@@ -48,7 +48,7 @@ public sealed class DirectoryScannerTests : IDisposable
         File.CreateSymbolicLink(Path.Combine(_root, "file-link.txt"), Path.Combine(_outside, "target.txt"));
         Directory.CreateSymbolicLink(Path.Combine(_root, "dir-link"), Path.Combine(_outside, "target-dir"));
 
-        var paths = _scanner.Scan(_root).Select(e => e.Path).ToArray();
+        var paths = _scanner.Scan(_root).Entries.Select(e => e.Path).ToArray();
 
         Assert.Equal(["real.txt"], paths);
     }
@@ -60,7 +60,7 @@ public sealed class DirectoryScannerTests : IDisposable
         Directory.CreateSymbolicLink(Path.Combine(_root, "loop"), _root);
 
         // A followed link here would recurse indefinitely.
-        var paths = _scanner.Scan(_root).Select(e => e.Path).ToArray();
+        var paths = _scanner.Scan(_root).Entries.Select(e => e.Path).ToArray();
 
         Assert.Equal(["real.txt"], paths);
     }
@@ -86,5 +86,79 @@ public sealed class DirectoryScannerTests : IDisposable
         Assert.NotNull(entry);
         Assert.Equal("plain.txt", entry!.Path);
         Assert.Equal(EntryType.File, entry.Type);
+    }
+
+    [Fact]
+    public void UnreadableFileIsReportedRatherThanOmittedSilently()
+    {
+        var path = Path.Combine(_root, "held.txt");
+        File.WriteAllText(path, "held");
+
+        using var guard = MakeUnreadable(path);
+        if (guard is null)
+            return; // running privileged: permissions cannot be withheld
+
+        var scan = _scanner.Scan(_root);
+
+        Assert.DoesNotContain(scan.Entries, e => e.Path == "held.txt");
+        Assert.True(scan.IsUnreadable("held.txt", StringComparison.Ordinal));
+        Assert.False(scan.IsUnreadable("other.txt", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void UnreadableDirectoryMarksItsWholeSubtree()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // no POSIX mode bits to deny enumeration with
+
+        var sub = Path.Combine(_root, "sub");
+        Directory.CreateDirectory(sub);
+        File.WriteAllText(Path.Combine(sub, "nested.txt"), "nested");
+
+        var scanBefore = _scanner.Scan(_root);
+        Assert.Contains(scanBefore.Entries, e => e.Path == "sub/nested.txt");
+        Assert.Empty(scanBefore.UnreadablePaths);
+
+        var previousMode = File.GetUnixFileMode(sub);
+        File.SetUnixFileMode(sub, UnixFileMode.None);
+        try
+        {
+            var scan = _scanner.Scan(_root);
+
+            // The directory itself is still visible (and so still present in
+            // the entries), but its contents cannot be enumerated.
+            Assert.Contains(scan.Entries, e => e.Path == "sub");
+            Assert.DoesNotContain(scan.Entries, e => e.Path == "sub/nested.txt");
+            Assert.True(scan.IsUnreadable("sub", StringComparison.Ordinal));
+            Assert.True(scan.IsUnreadable("sub/nested.txt", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.SetUnixFileMode(sub, previousMode);
+        }
+    }
+
+    /// <summary>
+    /// Hold or deny the file so that reading it fails. Returns a guard that
+    /// restores access, or null when the process runs privileged and Unix mode
+    /// bits cannot withhold it.
+    /// </summary>
+    private static IDisposable? MakeUnreadable(string path)
+    {
+        if (OperatingSystem.IsWindows())
+            return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        if (Environment.IsPrivilegedProcess)
+            return null;
+
+        var previous = File.GetUnixFileMode(path);
+        File.SetUnixFileMode(path, UnixFileMode.None);
+        return new ModeGuard(path, previous);
+    }
+
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    private sealed class ModeGuard(string path, UnixFileMode mode) : IDisposable
+    {
+        public void Dispose() => File.SetUnixFileMode(path, mode);
     }
 }
